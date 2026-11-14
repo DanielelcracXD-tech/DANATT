@@ -27,6 +27,9 @@ lo distes todo, te pasastes de koketa
 ola eres muy bonita jeje, te quiero muchísimo
 
 
+oye si? oye okei te quiero mucho
+
+
 oye m justas jeje
 
 
