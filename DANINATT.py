@@ -12,6 +12,7 @@ ALTO = 720
 FPS = 60
 ESPERA_REVISION = 10.0
 TIEMPO_POR_MISION = 35.0
+MULTIPLICADOR_CAMBIOS = 1.3
 
 pantalla = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("Apolo 13 | Regreso a casa")
@@ -40,6 +41,7 @@ RECURSOS = (
     ("agua", "Agua", AZUL, False),
     ("comida", "Comida", (222, 190, 105), False),
     ("co2", "CO₂ acumulado", (193, 128, 255), True),
+    ("salud", "Salud tripulación", (255, 112, 120), False),
     ("integridad", "Integridad", (108, 200, 255), False),
     ("moral", "Moral", (255, 132, 169), False),
     ("trayectoria", "Trayectoria", (117, 222, 186), False),
@@ -181,10 +183,45 @@ MISIONES = [
         ],
     },
     {
-        "titulo": "Corregir la trayectoria y volver a casa",
+        "titulo": "Racionamiento y control térmico",
+        "fase": "MÓDULO LUNAR · AGUA Y TEMPERATURA",
+        "texto": "Aquarius está frío y el agua restante también sostiene sistemas críticos. Hay que mantener lo indispensable sin agotar las reservas.",
+        "telemetria": ["Agua: reserva limitada", "Calefacción: consumo alto", "Cabina: temperatura baja"],
+        "correcta": 0,
+        "explicaciones": [
+            "Apagar cargas no esenciales y racionar agua conserva energía y soporte vital sin dejar la cabina totalmente fría.",
+            "Mantener todos los equipos encendidos consume energía y agua que la tripulación necesitará para el regreso.",
+            "Apagar toda la calefacción ahorra energía, pero el frío extremo perjudica a la tripulación y sus operaciones.",
+            "El agua no es ilimitada: gastarla sin un plan pone en riesgo los sistemas que dependen de ella.",
+        ],
+        "opciones": [
+            {
+                "texto": "Apagar cargas no esenciales y racionar agua",
+                "resultado": "La tripulación conserva consumibles y mantiene solo los sistemas necesarios.",
+                "cambios": {"energia": 5, "agua": -3, "comida": -2, "integridad": 1, "moral": -2},
+            },
+            {
+                "texto": "Mantener todos los sistemas a potencia normal",
+                "resultado": "La cabina está más cómoda, pero las reservas caen con rapidez.",
+                "cambios": {"energia": -14, "agua": -10, "comida": -3, "moral": 2, "errores": 1},
+            },
+            {
+                "texto": "Apagar toda la calefacción para conservar energía",
+                "resultado": "El ahorro no compensa el frío extremo que afecta a la tripulación y al equipo.",
+                "cambios": {"energia": 8, "salud": -12, "moral": -10, "integridad": -4, "errores": 1},
+            },
+            {
+                "texto": "Usar el agua sin racionamiento",
+                "resultado": "El consumo innecesario deja a la nave sin el margen previsto para el regreso.",
+                "cambios": {"agua": -22, "energia": -5, "salud": -5, "moral": -4, "errores": 2},
+            },
+        ],
+    },
+    {
+        "titulo": "Corregir la trayectoria hacia la Tierra",
         "fase": "REGRESO · PREPARACIÓN PARA EL AMERIZAJE",
-        "texto": "La nave rodeó la Luna y se dirige a la Tierra. La guía automática tiene poca energía: Houston y la tripulación deben ajustar el rumbo manualmente.",
-        "telemetria": ["Motor principal: limitado", "Guía automática: baja energía", "Reentrada: por confirmar"],
+        "texto": "La nave rodeó la Luna, pero la trayectoria debe apuntar con precisión al corredor de reentrada. La guía automática tiene poca energía.",
+        "telemetria": ["Retorno libre: activo", "Guía automática: baja energía", "Corrección: pendiente"],
         "correcta": 0,
         "explicaciones": [
             "La maniobra manual guiada por Houston corrige el rumbo y permite preparar la reentrada con datos y pasos verificados.",
@@ -212,6 +249,76 @@ MISIONES = [
                 "texto": "Omitir la corrección y entrar sin revisar el rumbo",
                 "resultado": "La nave se desvía y el amerizaje queda en grave riesgo.",
                 "cambios": {"trayectoria": -25, "integridad": -15, "moral": -10, "errores": 2},
+            },
+        ],
+    },
+    {
+        "titulo": "Reactivar el módulo de mando",
+        "fase": "PREPARACIÓN · CAMBIO AL MÓDULO DE MANDO",
+        "texto": "Antes de regresar a la atmósfera, la tripulación debe reactivar Odyssey con las baterías limitadas y comprobar los sistemas esenciales.",
+        "telemetria": ["Baterías: carga limitada", "Escudo térmico: por verificar", "Módulo lunar: aún acoplado"],
+        "correcta": 0,
+        "explicaciones": [
+            "La lista de Houston prioriza los sistemas vitales y evita una sobrecarga antes de abandonar Aquarius.",
+            "Encender todo simultáneamente agota las baterías y puede provocar fallos justo antes de la reentrada.",
+            "Separar Aquarius antes de confirmar el módulo de mando elimina el soporte vital de respaldo demasiado pronto.",
+            "Sin verificar el escudo térmico no se sabe si la cápsula puede soportar el calor de la reentrada.",
+        ],
+        "opciones": [
+            {
+                "texto": "Seguir la lista de Houston y activar los sistemas por etapas",
+                "resultado": "Odyssey vuelve a estar operativo sin gastar de golpe sus baterías.",
+                "cambios": {"energia": -5, "integridad": 5, "trayectoria": 3, "oxigeno": -1},
+            },
+            {
+                "texto": "Encender todos los sistemas al mismo tiempo",
+                "resultado": "La demanda supera el margen de las baterías y aparecen fallos eléctricos.",
+                "cambios": {"energia": -18, "integridad": -12, "moral": -4, "errores": 1},
+            },
+            {
+                "texto": "Separar Aquarius antes de revisar Odyssey",
+                "resultado": "La tripulación pierde el soporte vital de respaldo antes de confirmar la cápsula.",
+                "cambios": {"oxigeno": -10, "integridad": -14, "salud": -8, "errores": 1},
+            },
+            {
+                "texto": "Omitir la revisión del escudo térmico",
+                "resultado": "La cápsula se prepara para entrar sin confirmar su protección térmica.",
+                "cambios": {"integridad": -22, "salud": -10, "trayectoria": -5, "errores": 2},
+            },
+        ],
+    },
+    {
+        "titulo": "Reentrada y amerizaje",
+        "fase": "ÚLTIMA FASE · REGRESO A LA TIERRA",
+        "texto": "Odyssey está listo para separarse de Aquarius. La tripulación debe ejecutar la secuencia de reentrada y desplegar los paracaídas en el momento correcto.",
+        "telemetria": ["Escudo térmico: confirmado", "Ángulo de reentrada: crítico", "Recuperación: en espera"],
+        "correcta": 0,
+        "explicaciones": [
+            "La secuencia verificada mantiene el escudo térmico orientado y reserva los paracaídas para el descenso.",
+            "Separar los módulos fuera de secuencia puede dejar la cápsula sin soporte o interferir con su orientación.",
+            "Un ángulo demasiado pronunciado eleva el calentamiento y las fuerzas sobre la cápsula.",
+            "Sin desplegar los paracaídas la cápsula impactaría el océano a una velocidad peligrosa.",
+        ],
+        "opciones": [
+            {
+                "texto": "Confirmar orientación y seguir la secuencia de reentrada",
+                "resultado": "La cápsula mantiene el rumbo, atraviesa la atmósfera y despliega los paracaídas.",
+                "cambios": {"trayectoria": 8, "integridad": 5, "energia": -2, "salud": 2},
+            },
+            {
+                "texto": "Separar los módulos sin confirmar la orientación",
+                "resultado": "La cápsula pierde estabilidad y queda con poco margen de corrección.",
+                "cambios": {"trayectoria": -12, "integridad": -12, "salud": -5, "errores": 1},
+            },
+            {
+                "texto": "Entrar con un ángulo demasiado pronunciado",
+                "resultado": "El calor y la aceleración comprometen la estructura y el escudo térmico.",
+                "cambios": {"integridad": -28, "salud": -20, "trayectoria": -18, "errores": 2},
+            },
+            {
+                "texto": "Omitir la secuencia de paracaídas",
+                "resultado": "La cápsula llega al océano sin la desaceleración necesaria para un amerizaje seguro.",
+                "cambios": {"integridad": -30, "salud": -25, "trayectoria": -20, "errores": 2},
             },
         ],
     },
@@ -279,14 +386,15 @@ def panel(rect, titulo=None):
 
 def nuevo_estado():
     return {
-        "oxigeno": 82,
-        "energia": 78,
-        "agua": 75,
-        "comida": 78,
-        "co2": 18,
-        "integridad": 86,
-        "moral": 76,
-        "trayectoria": 42,
+        "oxigeno": 78,
+        "energia": 72,
+        "agua": 70,
+        "comida": 74,
+        "co2": 20,
+        "salud": 92,
+        "integridad": 84,
+        "moral": 72,
+        "trayectoria": 38,
         "errores": 0,
     }
 
@@ -300,10 +408,10 @@ def color_recurso(valor, inverso=False):
     return VERDE
 
 
-def dibujar_recursos(datos, x, y, ancho, compacto=False):
+def dibujar_recursos(datos, x, y, ancho, compacto=False, recursos=RECURSOS):
     alto_fila = 39 if compacto else 45
     alto_barra = 9
-    for clave, nombre, tono, inverso in RECURSOS:
+    for clave, nombre, tono, inverso in recursos:
         valor = int(max(0, min(100, datos[clave])))
         color = color_recurso(valor, inverso)
         etiqueta = fuente_mini.render(nombre, True, SUAVE)
@@ -338,6 +446,7 @@ def reiniciar():
         "fallo_pendiente": False,
         "tiempo_restante": TIEMPO_POR_MISION,
         "tiempo_agotado": False,
+        "filtro_adaptado": False,
     }
 
 
@@ -358,18 +467,47 @@ def continuar_revision(partida):
 
 
 def actualizar_reloj_mision(partida, dt):
-    if partida["pantalla"] != "mision" or partida["respuesta"] is not None:
+    if partida["pantalla"] != "mision":
+        return
+
+    datos = partida["recursos"]
+    fase = partida["mision"]
+    if fase == 0:
+        tasas = {"oxigeno": 0.045, "energia": 0.06, "agua": 0.027, "comida": 0.015, "co2": 0.008}
+    elif fase == 1:
+        tasas = {"oxigeno": 0.20, "energia": 0.28, "agua": 0.06, "comida": 0.035, "co2": 0.09}
+    elif fase <= 3:
+        tasas = {"oxigeno": 0.14, "energia": 0.19, "agua": 0.08, "comida": 0.055, "co2": 0.22}
+    else:
+        tasas = {"oxigeno": 0.12, "energia": 0.16, "agua": 0.07, "comida": 0.05, "co2": 0.18}
+    if partida["filtro_adaptado"] and fase >= 3:
+        tasas["co2"] = 0.02
+
+    for recurso in ("oxigeno", "energia", "agua", "comida"):
+        datos[recurso] = max(0, datos[recurso] - dt * tasas[recurso])
+    datos["co2"] = min(100, datos["co2"] + dt * tasas["co2"])
+
+    if datos["co2"] > 55:
+        datos["salud"] = max(0, datos["salud"] - dt * (0.015 + (datos["co2"] - 55) * 0.004))
+    if datos["oxigeno"] < 20:
+        datos["salud"] = max(0, datos["salud"] - dt * 0.12)
+    if datos["agua"] <= 0:
+        datos["salud"] = max(0, datos["salud"] - dt * 0.08)
+    if datos["comida"] <= 0 or datos["salud"] < 35:
+        datos["moral"] = max(0, datos["moral"] - dt * 0.08)
+    if datos["energia"] < 12:
+        datos["integridad"] = max(0, datos["integridad"] - dt * 0.05)
+
+    if partida["respuesta"] is not None:
+        if any(datos[clave] <= 0 for clave in ("oxigeno", "energia", "salud", "integridad")):
+            partida["fallo_pendiente"] = True
+            partida["mensaje"] = "La tripulación no pudo sostener los sistemas durante la espera."
         return
 
     partida["tiempo_restante"] = max(0.0, partida["tiempo_restante"] - dt)
-    datos = partida["recursos"]
-    datos["oxigeno"] = max(0, datos["oxigeno"] - dt * 0.20)
-    datos["energia"] = max(0, datos["energia"] - dt * 0.25)
-    datos["co2"] = min(100, datos["co2"] + dt * 0.12)
-
-    if any(datos[clave] <= 0 for clave in ("oxigeno", "energia", "integridad", "moral")):
+    if any(datos[clave] <= 0 for clave in ("oxigeno", "energia", "salud", "integridad")):
         partida["pantalla"] = "fallo"
-        partida["mensaje"] = "La espera agotó un recurso crítico antes de tomar una decisión."
+        partida["mensaje"] = "La tripulación perdió un sistema crítico mientras esperaba una decisión."
         return
 
     if partida["tiempo_restante"] <= 0:
@@ -482,14 +620,16 @@ def aplicar_opcion(partida, opcion, indice, por_tiempo=False):
         if clave == "errores":
             datos["errores"] += cambio
         else:
-            datos[clave] = max(0, min(100, datos[clave] + cambio))
+            datos[clave] = max(0, min(100, datos[clave] + cambio * MULTIPLICADOR_CAMBIOS))
     partida["respuesta"] = opcion["resultado"]
     partida["mensaje"] = opcion["resultado"]
     partida["indice_elegido"] = indice
     partida["revision_restante"] = ESPERA_REVISION
     partida["tiempo_agotado"] = por_tiempo
+    if partida["mision"] == 3 and indice == MISIONES[partida["mision"]]["correcta"]:
+        partida["filtro_adaptado"] = True
     partida["fallo_pendiente"] = any(
-        datos[clave] <= 0 for clave in ("oxigeno", "energia", "integridad", "moral")
+        datos[clave] <= 0 for clave in ("oxigeno", "energia", "salud", "integridad")
     )
     if partida["fallo_pendiente"]:
         partida["mensaje"] = "La misión se interrumpió: un recurso crítico llegó a cero."
@@ -502,16 +642,15 @@ def calcular_resultado(datos):
         datos["agua"],
         datos["comida"],
         100 - datos["co2"],
+        datos["salud"],
         datos["integridad"],
         datos["moral"],
         datos["trayectoria"],
     ]
     puntaje = max(0, min(100, round(sum(valores) / len(valores) - datos["errores"] * 4)))
-    sobrevivio = all(datos[clave] > 0 for clave in ("oxigeno", "energia", "integridad", "moral"))
-    if not sobrevivio:
-        return puntaje, "MISIÓN FALLIDA", "Un sistema crítico llegó a cero antes de completar el regreso.", ROJO
-    if datos["trayectoria"] < 25 or datos["integridad"] < 20:
-        return puntaje, "REGRESO EN RIESGO", "La tripulación sobrevivió, pero la nave no aseguró un amerizaje controlado.", NARANJA
+    sobrevivio = all(datos[clave] > 0 for clave in ("oxigeno", "energia", "salud", "integridad"))
+    if not sobrevivio or datos["trayectoria"] < 25 or datos["integridad"] < 20 or puntaje < 38:
+        return puntaje, "MISIÓN FALLIDA", "La nave no logró sostener a la tripulación ni asegurar una reentrada viable.", ROJO
     if puntaje >= 78:
         return puntaje, "AMERIZAJE EXITOSO", "La tripulación regresa a casa con sistemas y recursos en buen estado.", VERDE
     if puntaje >= 55:
@@ -627,12 +766,13 @@ def dibujar_final(partida, mouse, botones):
     dibujar_texto(pantalla, descripcion, fuente_pequena, SUAVE, 105, 177, 830, 4, 1)
 
     panel(pygame.Rect(70, 237, 610, 394), "Recursos al cierre")
-    dibujar_recursos(datos, 100, 281, 545, compacto=False)
+    dibujar_recursos(datos, 100, 281, 545, compacto=True)
     panel(pygame.Rect(710, 237, 320, 190), "Resumen")
     lineas = [
         "Misiones completadas: %d / %d" % (len(MISIONES), len(MISIONES)),
         "Errores críticos: %d" % datos["errores"],
         "Oxígeno restante: %d%%" % datos["oxigeno"],
+        "Salud de la tripulación: %d%%" % datos["salud"],
         "Integridad de la nave: %d%%" % datos["integridad"],
     ]
     for indice, linea in enumerate(lineas):
@@ -644,7 +784,7 @@ def dibujar_final(partida, mouse, botones):
 
 
 def dibujar_fallo(partida, mouse, botones):
-    panel(pygame.Rect(100, 105, 900, 490))
+    panel(pygame.Rect(100, 70, 900, 625))
     etiqueta = fuente_mini.render("CENTRO DE CONTROL · SEÑAL PERDIDA", True, ROJO)
     pantalla.blit(etiqueta, (145, 145))
     titulo = fuente_titulo.render("MISIÓN INTERRUMPIDA", True, BLANCO)
@@ -660,8 +800,9 @@ def dibujar_fallo(partida, mouse, botones):
         8,
         4,
     )
-    panel(pygame.Rect(145, 365, 800, 150), "Última telemetría")
-    dibujar_recursos(partida["recursos"], 170, 403, 740, compacto=True)
+    panel(pygame.Rect(145, 350, 800, 255), "Última telemetría")
+    dibujar_recursos(partida["recursos"], 170, 389, 340, compacto=True, recursos=RECURSOS[:5])
+    dibujar_recursos(partida["recursos"], 550, 389, 340, compacto=True, recursos=RECURSOS[5:])
     for boton in botones:
         boton.dibujar(pantalla, mouse)
 
@@ -681,7 +822,7 @@ def main():
         botones_eleccion.append(Boton((61, 354 + indice * 63, 586, 54), opcion["texto"], indice))
     boton_reiniciar = Boton((735, 520, 270, 34), "JUGAR DE NUEVO")
     boton_menu = Boton((735, 560, 270, 34), "VOLVER AL MENÚ")
-    boton_fallo = Boton((400, 540, 300, 52), "INTENTAR DE NUEVO")
+    boton_fallo = Boton((400, 625, 300, 52), "INTENTAR DE NUEVO")
     boton_salir_final = Boton((735, 600, 270, 34), "SALIR")
     corriendo = True
     tiempo = 0.0
