@@ -66,6 +66,8 @@ AMARILLO = (255, 190, 75)
 PANEL = (13, 25, 45)
 PANEL_CLARO = (19, 38, 65)
 BORDE = (42, 70, 105)
+PARED = (88, 125, 160)
+SUELO = (19, 35, 57)
 
 MAPA = pygame.Rect(38, 230, 850, 430)
 
@@ -90,84 +92,6 @@ titulo = pygame.font.SysFont(
 estado = "menu"
 
 cantidad_jugadores = 0
-
-# ====================
-# JUGADOR
-# ====================
-
-class Jugador:
-
-    def __init__(
-        self,
-        x,
-        y,
-        color,
-        nombre
-    ):
-
-        self.x = x
-        self.y = y
-
-        self.color = color
-        self.nombre = nombre
-
-        self.rect = pygame.Rect(
-            x,
-            y,
-            40,
-            50
-        )
-
-        self.velocidad = 250
-
-    def mover(
-        self,
-        teclas,
-        controles,
-        dt
-    ):
-
-        if teclas[controles[0]]:
-            self.y -= self.velocidad * dt
-
-        if teclas[controles[1]]:
-            self.y += self.velocidad * dt
-
-        if teclas[controles[2]]:
-            self.x -= self.velocidad * dt
-
-        if teclas[controles[3]]:
-            self.x += self.velocidad * dt
-
-        self.x = max(MAPA.left + 8, min(MAPA.right - 48, self.x))
-        self.y = max(MAPA.top + 10, min(MAPA.bottom - 58, self.y))
-
-        self.rect.x = self.x
-        self.rect.y = self.y
-
-    def dibujar(self):
-        x, y = self.rect.x, self.rect.y
-        centro_x = self.rect.centerx
-
-        pygame.draw.ellipse(pantalla, (0, 0, 0, 90), (x + 2, y + 42, 38, 9))
-        pygame.draw.rect(pantalla, (24, 35, 53), (x + 1, y + 23, 8, 20), border_radius=3)
-        pygame.draw.rect(pantalla, self.color, (x + 8, y + 23, 25, 23), border_radius=8)
-        pygame.draw.rect(pantalla, BLANCO, (x + 16, y + 29, 10, 11), border_radius=3)
-        pygame.draw.line(pantalla, (220, 232, 245), (x + 11, y + 45), (x + 8, y + 50), 4)
-        pygame.draw.line(pantalla, (220, 232, 245), (x + 29, y + 45), (x + 32, y + 50), 4)
-
-        pygame.draw.circle(pantalla, (18, 30, 48), (centro_x, y + 15), 15)
-        pygame.draw.circle(pantalla, self.color, (centro_x, y + 14), 13)
-        visor = pygame.Rect(x + 9, y + 8, 23, 13)
-        pygame.draw.rect(pantalla, (118, 198, 237), visor, border_radius=6)
-        pygame.draw.line(pantalla, (224, 248, 255), (x + 13, y + 10), (x + 25, y + 10), 2)
-
-        placa = fuente_mini.render(self.nombre, True, BLANCO)
-        placa_rect = placa.get_rect(center=(centro_x, y - 10))
-        fondo_placa = placa_rect.inflate(12, 6)
-        pygame.draw.rect(pantalla, (8, 17, 31), fondo_placa, border_radius=6)
-        pygame.draw.rect(pantalla, self.color, fondo_placa, 1, border_radius=6)
-        pantalla.blit(placa, placa_rect)
 
 # ====================
 # SALAS
@@ -211,6 +135,127 @@ COLORES_SALA = {
     "NAVEGACION": (98, 166, 255),
     "COMUNICACIONES": (190, 142, 255),
 }
+
+# ====================
+# ZONAS CAMINABLES (todo lo demas es pared)
+# ====================
+
+PASILLO = pygame.Rect(150, 424, 630, 58)
+
+PUERTAS = [
+    pygame.Rect(182 - 32, 414, 64, 14),    # Energia <-> pasillo
+    pygame.Rect(465 - 32, 414, 64, 14),    # Oxigeno <-> pasillo
+    pygame.Rect(748 - 32, 414, 64, 14),    # Navegacion <-> pasillo
+    pygame.Rect(465 - 32, 478, 64, 18),    # Pasillo <-> Comunicaciones
+]
+
+ZONAS = list(salas.values()) + [PASILLO] + PUERTAS
+
+GROSOR_PARED = 7
+
+
+def punto_caminable(px, py):
+    for zona in ZONAS:
+        if zona.collidepoint(px, py):
+            return True
+    return False
+
+
+def hitbox_valida(caja):
+    # Las 4 esquinas de la hitbox deben estar dentro de una zona caminable.
+    return (punto_caminable(caja.left, caja.top)
+            and punto_caminable(caja.right - 1, caja.top)
+            and punto_caminable(caja.left, caja.bottom - 1)
+            and punto_caminable(caja.right - 1, caja.bottom - 1))
+
+# ====================
+# JUGADOR
+# ====================
+
+class Jugador:
+
+    def __init__(
+        self,
+        x,
+        y,
+        color,
+        nombre
+    ):
+
+        self.x = x
+        self.y = y
+
+        self.color = color
+        self.nombre = nombre
+
+        self.rect = pygame.Rect(
+            x,
+            y,
+            40,
+            50
+        )
+
+        self.velocidad = 250
+
+    def hitbox(self, x, y):
+        # Solo los pies colisionan con las paredes.
+        return pygame.Rect(int(x) + 7, int(y) + 32, 26, 18)
+
+    def mover(
+        self,
+        teclas,
+        controles,
+        dt
+    ):
+
+        dx = 0
+        dy = 0
+
+        if teclas[controles[0]]:
+            dy -= self.velocidad * dt
+
+        if teclas[controles[1]]:
+            dy += self.velocidad * dt
+
+        if teclas[controles[2]]:
+            dx -= self.velocidad * dt
+
+        if teclas[controles[3]]:
+            dx += self.velocidad * dt
+
+        # Cada eje por separado para poder deslizarse por las paredes.
+        if dx and hitbox_valida(self.hitbox(self.x + dx, self.y)):
+            self.x += dx
+
+        if dy and hitbox_valida(self.hitbox(self.x, self.y + dy)):
+            self.y += dy
+
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    def dibujar(self):
+        x, y = self.rect.x, self.rect.y
+        centro_x = self.rect.centerx
+
+        pygame.draw.ellipse(pantalla, (0, 0, 0, 90), (x + 2, y + 42, 38, 9))
+        pygame.draw.rect(pantalla, (24, 35, 53), (x + 1, y + 23, 8, 20), border_radius=3)
+        pygame.draw.rect(pantalla, self.color, (x + 8, y + 23, 25, 23), border_radius=8)
+        pygame.draw.rect(pantalla, BLANCO, (x + 16, y + 29, 10, 11), border_radius=3)
+        pygame.draw.line(pantalla, (220, 232, 245), (x + 11, y + 45), (x + 8, y + 50), 4)
+        pygame.draw.line(pantalla, (220, 232, 245), (x + 29, y + 45), (x + 32, y + 50), 4)
+
+        pygame.draw.circle(pantalla, (18, 30, 48), (centro_x, y + 15), 15)
+        pygame.draw.circle(pantalla, self.color, (centro_x, y + 14), 13)
+        visor = pygame.Rect(x + 9, y + 8, 23, 13)
+        pygame.draw.rect(pantalla, (118, 198, 237), visor, border_radius=6)
+        pygame.draw.line(pantalla, (224, 248, 255), (x + 13, y + 10), (x + 25, y + 10), 2)
+
+        placa = fuente_mini.render(self.nombre, True, BLANCO)
+        placa_rect = placa.get_rect(center=(centro_x, y - 10))
+        fondo_placa = placa_rect.inflate(12, 6)
+        pygame.draw.rect(pantalla, (8, 17, 31), fondo_placa, border_radius=6)
+        pygame.draw.rect(pantalla, self.color, fondo_placa, 1, border_radius=6)
+        pantalla.blit(placa, placa_rect)
 
 # ====================
 # MISIONES
@@ -340,11 +385,12 @@ def crear_jugadores(total):
     jugadores.clear()
     mision_actual = 0
 
+    # Todos empiezan dentro de la sala de COMUNICACIONES.
     posiciones = [
-        (375, 438),
-        (435, 438),
-        (495, 438),
-        (555, 438)
+        (370, 535),
+        (415, 535),
+        (460, 535),
+        (505, 535)
     ]
 
     for i in range(total):
@@ -367,21 +413,27 @@ def obtener_responsable(objetivo):
     return director, director is not None
 
 
+def dibujar_paredes():
+    # Borde grueso alrededor de todas las zonas caminables = paredes.
+    for zona in ZONAS:
+        pygame.draw.rect(pantalla, PARED, zona.inflate(GROSOR_PARED * 2, GROSOR_PARED * 2),
+                         border_radius=10)
+    # Suelo encima: deja visible solo el contorno y abre las puertas.
+    for zona in ZONAS:
+        pygame.draw.rect(pantalla, SUELO, zona, border_radius=6)
+
+
 def dibujar_nave(tiempo, mouse):
     pygame.draw.rect(pantalla, (8, 17, 32), MAPA, border_radius=22)
     pygame.draw.rect(pantalla, BORDE, MAPA, 2, border_radius=22)
     pygame.draw.line(pantalla, (24, 45, 70), (MAPA.left + 18, MAPA.top + 28),
                      (MAPA.right - 18, MAPA.top + 28), 1)
 
-    # Pasillos conectan las salas y hacen legible el plano de la nave.
-    pygame.draw.line(pantalla, (19, 35, 57), (182, 450), (748, 450), 25)
-    pygame.draw.line(pantalla, (19, 35, 57), (182, 418), (182, 450), 20)
-    pygame.draw.line(pantalla, (19, 35, 57), (465, 418), (465, 492), 20)
-    pygame.draw.line(pantalla, (19, 35, 57), (748, 418), (748, 450), 20)
-    pygame.draw.line(pantalla, (35, 62, 91), (182, 450), (748, 450), 2)
-    pygame.draw.line(pantalla, (35, 62, 91), (182, 418), (182, 450), 2)
-    pygame.draw.line(pantalla, (35, 62, 91), (465, 418), (465, 492), 2)
-    pygame.draw.line(pantalla, (35, 62, 91), (748, 418), (748, 450), 2)
+    dibujar_paredes()
+
+    # Marcas de puertas
+    for puerta in PUERTAS:
+        pygame.draw.rect(pantalla, (35, 62, 91), puerta.inflate(-10, 0), 1)
 
     objetivo = misiones[mision_actual] if mision_actual < len(misiones) else None
     for nombre, sala in salas.items():
@@ -409,6 +461,10 @@ def dibujar_nave(tiempo, mouse):
         pygame.draw.circle(pantalla, estado_color, (sala.x + 19, sala.bottom - 20), 4)
         pantalla.blit(fuente_mini.render(estado_sala, True, estado_color),
                       (sala.x + 30, sala.bottom - 28))
+
+    # Redibuja las puertas encima del borde de las salas para que se vean abiertas.
+    for puerta in PUERTAS:
+        pygame.draw.rect(pantalla, SUELO, puerta.inflate(-6, 0))
 
     tiempo_texto = fuente_mini.render("MODULO DE MANDO  //  APOLO 13", True, SUAVE)
     pantalla.blit(tiempo_texto, (MAPA.x + 18, MAPA.y + 10))
