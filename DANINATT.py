@@ -10,8 +10,7 @@ pygame.init()
 ANCHO = 1100
 ALTO = 720
 FPS = 60
-ESPERA_TRANSICION = 0.6
-DURACION_FUNDIDO = 0.55
+ESPERA_REVISION = 10.0
 
 pantalla = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("Apolo 13 | Regreso a casa")
@@ -51,6 +50,13 @@ MISIONES = [
         "fase": "11 DE ABRIL · RUMBO A LA LUNA",
         "texto": "La nave vuela con normalidad. Houston solicita agitar los tanques criogénicos y revisar la telemetría antes de continuar.",
         "telemetria": ["Bus principal: NOMINAL", "Celdas de combustible: 3", "Tanques: lectura estable"],
+        "correcta": 0,
+        "explicaciones": [
+            "Era el procedimiento programado: comprobar los tanques ahora evita dejar una lectura anómala sin investigar.",
+            "La segunda revisión confirma lo mismo, pero consume tiempo y energía sin aportar información nueva.",
+            "El descanso ayuda al ánimo, pero aplazar una comprobación programada deja una tarea importante pendiente.",
+            "Ahorrar energía no compensa perder telemetría y continuar sin saber si los tanques están bien.",
+        ],
         "opciones": [
             {
                 "texto": "Agitar los tanques y confirmar telemetría",
@@ -79,6 +85,13 @@ MISIONES = [
         "fase": "ALERTA · SISTEMAS DAÑADOS",
         "texto": "Una explosión sacude la nave. Dos celdas de combustible fallan, el Bus B queda sin voltaje y el oxígeno empieza a escapar.",
         "telemetria": ["Bus B: 0 V", "Celdas 1 y 3: FUERA", "Oxígeno: presión descendente"],
+        "correcta": 0,
+        "explicaciones": [
+            "Reducir cargas conserva la única celda disponible y estabiliza los sistemas mientras Houston prepara el regreso.",
+            "Las celdas dañadas no se pueden recuperar con un reinicio; intentarlo puede sobrecargar la que sigue funcionando.",
+            "Esperar deja que el oxígeno siga escapando. Primero hay que limitar el consumo y estabilizar la nave.",
+            "El plan de alunizaje ya no es seguro: ignorar las alarmas agrava la pérdida de recursos críticos.",
+        ],
         "opciones": [
             {
                 "texto": "Apagar cargas no esenciales y estabilizar el Bus B",
@@ -107,6 +120,12 @@ MISIONES = [
         "fase": "DECISIÓN CRÍTICA · CAMBIO DE MÓDULO",
         "texto": "El módulo de mando ya no puede sostener a la tripulación. El módulo lunar Aquarius puede ofrecer aire y energía, pero sus recursos son limitados.",
         "telemetria": ["Módulo de mando: energía crítica", "Aquarius: disponible", "Tripulación: 3 personas"],
+        "correcta": 0,
+        "explicaciones": [
+            "Aquarius puede mantener con vida a la tripulación. Apagar lo innecesario conserva sus limitados recursos.",
+            "El módulo de mando perdió sus fuentes principales de energía y ya no puede sostener a la tripulación.",
+            "La demora consume el poco aire y energía restantes; el módulo lunar debe activarse cuanto antes.",
+        ],
         "opciones": [
             {
                 "texto": "Trasladarse al módulo lunar y apagar lo innecesario",
@@ -130,6 +149,13 @@ MISIONES = [
         "fase": "SOPORTE VITAL · FILTROS INCOMPATIBLES",
         "texto": "El CO₂ sube dentro de Aquarius. Los filtros disponibles no encajan en el sistema del módulo lunar; hay que improvisar con el material a bordo.",
         "telemetria": ["CO₂: aumentando", "Filtros: incompatibles", "Energía: racionada"],
+        "correcta": 0,
+        "explicaciones": [
+            "La adaptación conecta el filtro disponible al sistema del módulo y elimina el CO₂, que es el peligro inmediato.",
+            "Apagar la ventilación dificulta retirar el CO₂ y puede intoxicar a la tripulación aunque ahorre energía.",
+            "Racionar agua no resuelve el problema del aire: el CO₂ seguirá acumulándose sin un filtro funcional.",
+            "Mantener el filtro desconectado deja a la tripulación expuesta al aumento de dióxido de carbono.",
+        ],
         "opciones": [
             {
                 "texto": "Adaptar un filtro con cinta, bolsas y mangueras",
@@ -158,6 +184,13 @@ MISIONES = [
         "fase": "REGRESO · PREPARACIÓN PARA EL AMERIZAJE",
         "texto": "La nave rodeó la Luna y se dirige a la Tierra. La guía automática tiene poca energía: Houston y la tripulación deben ajustar el rumbo manualmente.",
         "telemetria": ["Motor principal: limitado", "Guía automática: baja energía", "Reentrada: por confirmar"],
+        "correcta": 0,
+        "explicaciones": [
+            "La maniobra manual guiada por Houston corrige el rumbo y permite preparar la reentrada con datos y pasos verificados.",
+            "Una corrección corta ahorra energía, pero puede no corregir lo suficiente la trayectoria para una reentrada segura.",
+            "Confiar en un rumbo no confirmado deja poco margen para corregir antes de llegar a la Tierra.",
+            "Omitir la corrección aumenta el riesgo de entrar con un ángulo de reentrada peligroso.",
+        ],
         "opciones": [
             {
                 "texto": "Hacer la maniobra manual con guía de Houston",
@@ -298,51 +331,123 @@ def reiniciar():
         "recursos": nuevo_estado(),
         "mision": 0,
         "respuesta": None,
+        "indice_elegido": None,
         "mensaje": "Houston conectado. Esperando al director de misión.",
-        "transicion_restante": None,
-        "entrada_restante": 0.0,
+        "revision_restante": None,
+        "fallo_pendiente": False,
     }
 
 
-def avanzar_transicion(partida, dt):
-    if partida["entrada_restante"] > 0:
-        partida["entrada_restante"] = max(0.0, partida["entrada_restante"] - dt)
-
-    if partida["pantalla"] != "mision" or partida["respuesta"] is None:
-        return
-
-    restante = partida["transicion_restante"]
-    if restante is None:
-        return
-
-    partida["transicion_restante"] = max(0.0, restante - dt)
-    if partida["transicion_restante"] > 0:
-        return
-
-    if partida["mision"] == len(MISIONES) - 1:
+def continuar_revision(partida):
+    if partida["fallo_pendiente"]:
+        partida["pantalla"] = "fallo"
+    elif partida["mision"] == len(MISIONES) - 1:
         partida["pantalla"] = "final"
     else:
         partida["mision"] += 1
         partida["respuesta"] = None
-    partida["transicion_restante"] = None
-    partida["entrada_restante"] = DURACION_FUNDIDO
+        partida["indice_elegido"] = None
+        partida["mensaje"] = "Houston: " + MISIONES[partida["mision"]]["titulo"] + "."
+    partida["revision_restante"] = None
+    partida["fallo_pendiente"] = False
 
 
-def dibujar_animacion_transicion(partida):
-    alpha = 0
-    if partida["entrada_restante"] > 0:
-        alpha = int(255 * partida["entrada_restante"] / DURACION_FUNDIDO)
-    elif partida["pantalla"] == "mision" and partida["transicion_restante"] is not None:
-        transcurrido = ESPERA_TRANSICION - partida["transicion_restante"]
-        alpha = int(255 * min(1.0, max(0.0, transcurrido / DURACION_FUNDIDO)))
-
-    if alpha > 0:
-        capa = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
-        capa.fill((2, 6, 14, alpha))
-        pantalla.blit(capa, (0, 0))
+def actualizar_revision(partida, dt):
+    if partida["pantalla"] != "mision" or partida["respuesta"] is None:
+        return
+    restante = partida["revision_restante"]
+    if restante is None:
+        return
+    partida["revision_restante"] = max(0.0, restante - dt)
+    if partida["revision_restante"] <= 0:
+        continuar_revision(partida)
 
 
-def aplicar_opcion(partida, opcion):
+def dibujar_revision(partida):
+    overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    overlay.fill((2, 6, 14, 220))
+    pantalla.blit(overlay, (0, 0))
+
+    ventana = pygame.Rect(48, 34, 1004, 652)
+    panel(ventana)
+    mision = MISIONES[partida["mision"]]
+    recomendada = mision["correcta"]
+    seleccionada = partida["indice_elegido"]
+    encabezado = fuente_subtitulo.render("REVISIÓN DE MISIÓN %d / %d" % (partida["mision"] + 1, len(MISIONES)), True, NARANJA)
+    pantalla.blit(encabezado, (78, 55))
+
+    if seleccionada == recomendada:
+        estado = "ELEGISTE LA RESPUESTA RECOMENDADA"
+        color_estado = VERDE
+    else:
+        estado = "TU ELECCIÓN FUE OTRA; REVISA POR QUÉ"
+        color_estado = NARANJA
+    pantalla.blit(fuente_pequena.render(estado, True, color_estado), (78, 88))
+
+    caja_correcta = pygame.Rect(75, 118, 950, 108)
+    pygame.draw.rect(pantalla, (13, 51, 47), caja_correcta, border_radius=9)
+    pygame.draw.rect(pantalla, VERDE, caja_correcta, 2, border_radius=9)
+    pantalla.blit(fuente_mini.render("RESPUESTA RECOMENDADA", True, VERDE), (92, 128))
+    correcta = mision["opciones"][recomendada]
+    y = dibujar_texto(pantalla, correcta["texto"], fuente_pequena, BLANCO, 92, 151, 915, 3, 1)
+    dibujar_texto(
+        pantalla,
+        "Por qué: " + mision["explicaciones"][recomendada],
+        fuente_mini,
+        SUAVE,
+        92,
+        y + 2,
+        915,
+        2,
+        2,
+    )
+
+    pantalla.blit(
+        fuente_pequena.render("POR QUÉ LAS DEMÁS OPCIONES NO SON RECOMENDABLES", True, SUAVE),
+        (78, 242),
+    )
+    y = 270
+    for indice, opcion in enumerate(mision["opciones"]):
+        if indice == recomendada:
+            continue
+        alto = 92
+        rect = pygame.Rect(75, y, 950, alto)
+        elegido = indice == seleccionada
+        tono = NARANJA if elegido else BORDE
+        pygame.draw.rect(pantalla, (17, 31, 51), rect, border_radius=8)
+        pygame.draw.rect(pantalla, tono, rect, 1, border_radius=8)
+        etiqueta = "TU ELECCIÓN" if elegido else "ALTERNATIVA %d" % (indice + 1)
+        pantalla.blit(fuente_mini.render(etiqueta, True, tono), (92, y + 7))
+        texto_y = dibujar_texto(
+            pantalla,
+            opcion["texto"],
+            fuente_mini,
+            BLANCO,
+            92,
+            y + 26,
+            915,
+            2,
+            1,
+        )
+        dibujar_texto(
+            pantalla,
+            "Por qué no es la mejor: " + mision["explicaciones"][indice],
+            fuente_mini,
+            SUAVE,
+            92,
+            texto_y + 1,
+            915,
+            2,
+            2,
+        )
+        y += alto + 8
+
+    restante = max(0, math.ceil(partida["revision_restante"] or 0))
+    instruccion = "Enter o clic para continuar · avance automático en %d s" % restante
+    pantalla.blit(fuente_mini.render(instruccion, True, SUAVE), (78, 644))
+
+
+def aplicar_opcion(partida, opcion, indice):
     datos = partida["recursos"]
     for clave, cambio in opcion["cambios"].items():
         if clave == "errores":
@@ -351,10 +456,13 @@ def aplicar_opcion(partida, opcion):
             datos[clave] = max(0, min(100, datos[clave] + cambio))
     partida["respuesta"] = opcion["resultado"]
     partida["mensaje"] = opcion["resultado"]
-    if any(datos[clave] <= 0 for clave in ("oxigeno", "energia", "integridad", "moral")):
-        partida["pantalla"] = "fallo"
-    else:
-        partida["transicion_restante"] = ESPERA_TRANSICION
+    partida["indice_elegido"] = indice
+    partida["revision_restante"] = ESPERA_REVISION
+    partida["fallo_pendiente"] = any(
+        datos[clave] <= 0 for clave in ("oxigeno", "energia", "integridad", "moral")
+    )
+    if partida["fallo_pendiente"]:
+        partida["mensaje"] = "La misión se interrumpió: un recurso crítico llegó a cero."
 
 
 def calcular_resultado(datos):
@@ -460,25 +568,6 @@ def dibujar_mision(partida, mouse, botones):
         respuesta = partida["respuesta"] or partida["mensaje"]
         dibujar_texto(pantalla, "REPORTE DE HOUSTON", fuente_pequena, VERDE, 64, 350, 560, 5)
         dibujar_texto(pantalla, respuesta, fuente_texto, BLANCO, 64, 384, 560, 8, 5)
-        if partida["transicion_restante"] is not None:
-            if partida["mision"] == len(MISIONES) - 1:
-                siguiente = "INFORME FINAL"
-            else:
-                siguiente = "SIGUIENTE: " + MISIONES[partida["mision"] + 1]["titulo"].upper()
-            restante = partida["transicion_restante"]
-            progreso = 1.0 - restante / ESPERA_TRANSICION
-            pantalla.blit(fuente_mini.render(siguiente, True, NARANJA), (64, 555))
-            pantalla.blit(
-                fuente_mini.render("CONTINUANDO EN %.1f S..." % restante, True, SUAVE),
-                (64, 584),
-            )
-            pygame.draw.rect(pantalla, (5, 12, 24), (64, 612, 555, 8), border_radius=4)
-            pygame.draw.rect(
-                pantalla,
-                NARANJA,
-                (64, 612, int(555 * max(0.0, min(1.0, progreso))), 8),
-                border_radius=4,
-            )
 
     for indice, lectura in enumerate(mision["telemetria"]):
         y = 566 + indice * 25
@@ -565,7 +654,7 @@ def main():
     while corriendo:
         dt = reloj.tick(FPS) / 1000.0
         tiempo += dt
-        avanzar_transicion(partida, dt)
+        actualizar_revision(partida, dt)
         mouse = pygame.mouse.get_pos()
         dibujar_fondo(tiempo, estrellas)
 
@@ -582,18 +671,24 @@ def main():
             else:
                 botones = []
             dibujar_mision(partida, mouse, botones)
+            if partida["respuesta"] is not None:
+                dibujar_revision(partida)
         elif partida["pantalla"] == "final":
             dibujar_final(partida, mouse, [boton_reiniciar, boton_menu, boton_salir_final])
         else:
             dibujar_fallo(partida, mouse, [boton_fallo])
 
-        dibujar_animacion_transicion(partida)
-
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 corriendo = False
             elif evento.type == pygame.KEYDOWN:
-                if evento.key == pygame.K_ESCAPE:
+                if (
+                    partida["pantalla"] == "mision"
+                    and partida["respuesta"] is not None
+                    and evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE)
+                ):
+                    continuar_revision(partida)
+                elif evento.key == pygame.K_ESCAPE:
                     if partida["pantalla"] == "menu":
                         corriendo = False
                     elif partida["pantalla"] in ("final", "fallo"):
@@ -606,7 +701,7 @@ def main():
                         indice = evento.key - pygame.K_1
                         opciones = MISIONES[partida["mision"]]["opciones"]
                         if indice < len(opciones):
-                            aplicar_opcion(partida, opciones[indice])
+                            aplicar_opcion(partida, opciones[indice], indice)
                 elif partida["pantalla"] == "final" and evento.key == pygame.K_r:
                     partida = reiniciar()
                     partida["pantalla"] = "mision"
@@ -625,8 +720,10 @@ def main():
                         for boton in botones_eleccion:
                             if boton.contiene(evento.pos):
                                 opciones = MISIONES[partida["mision"]]["opciones"]
-                                aplicar_opcion(partida, opciones[boton.indice])
+                                aplicar_opcion(partida, opciones[boton.indice], boton.indice)
                                 break
+                    elif pygame.Rect(48, 34, 1004, 652).collidepoint(evento.pos):
+                        continuar_revision(partida)
                 elif partida["pantalla"] == "final":
                     if boton_reiniciar.contiene(evento.pos):
                         partida = reiniciar()
