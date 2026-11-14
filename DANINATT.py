@@ -86,7 +86,7 @@ INDICE_RECURSO = {clave: i for i, (clave, _, _, _) in enumerate(RECURSOS)}
 CRITICOS = ("oxigeno", "energia", "salud", "integridad")
 
 # Posición de la nave (0 = Tierra, 0.5 = Luna, 1 = Tierra) por misión.
-RUTA = [0.28, 0.36, 0.44, 0.52, 0.58, 0.76, 0.88, 0.96]
+RUTA = [0.28, 0.36, 0.44, 0.52, 0.58, 0.62, 0.76, 0.81, 0.88, 0.93, 0.97]
 
 DATOS = [
     "La explosión del tanque de oxígeno 2 ocurrió unas 56 horas después del lanzamiento, tras agitar los tanques criogénicos.",
@@ -94,8 +94,11 @@ DATOS = [
     "Aquarius estaba diseñado para dos astronautas durante unos dos días; tuvo que sostener a tres durante cerca de cuatro.",
     "El adaptador del filtro de CO₂ fue diseñado en tierra y apodado «el buzón»; la tripulación lo montó con material de a bordo.",
     "La cabina bajó hasta unos 4 °C y la tripulación racionó el agua a menos de 200 ml por persona al día.",
+    "Durante el regreso, la tripulación redujo el consumo eléctrico del LM para conservar energía y agua para las maniobras finales.",
     "La corrección de rumbo se hizo encendiendo manualmente el motor de descenso de Aquarius, usando la Tierra como referencia.",
+    "La orientación manual dependía de referencias visibles y de los tiempos de maniobra calculados por Houston.",
     "El procedimiento para reactivar Odyssey se escribió y probó en simuladores en tierra antes de dictarlo a la tripulación.",
+    "La separación del módulo de servicio permitió observar el daño exterior antes de la reentrada.",
     "El 17 de abril de 1970 la cápsula amerizó en el Pacífico Sur; el apagón de comunicaciones duró más de lo habitual.",
 ]
 
@@ -270,6 +273,41 @@ MISIONES = [
         ],
     },
     {
+        "titulo": "Turnos de descanso y vigilancia médica",
+        "fase": "SUPERVIVENCIA · FATIGA DE LA TRIPULACIÓN",
+        "texto": "La tripulación lleva días durmiendo poco y trabajando en una cabina fría. Houston necesita que sigan alerta sin gastar los recursos que quedan.",
+        "telemetria": ["Salud: bajo estrés", "Cabina: fría", "Regreso: aún en curso"],
+        "correcta": 0,
+        "explicaciones": [
+            "Los turnos permiten descansar sin dejar la nave sin vigilancia y ayudan a detectar pronto un deterioro de salud.",
+            "Trabajar sin dormir aumenta los errores humanos y empeora la salud justo cuando se necesitan maniobras precisas.",
+            "Si todos duermen a la vez nadie vigila los sistemas ni puede responder rápidamente a una alarma.",
+            "La calefacción máxima mejora el confort, pero consume agua y energía necesarias para el soporte vital.",
+        ],
+        "opciones": [
+            {
+                "texto": "Alternar descansos y revisar los signos vitales por turnos",
+                "resultado": "La tripulación recupera fuerzas mientras alguien permanece atento a los sistemas.",
+                "cambios": {"salud": 7, "moral": 5, "agua": -2, "comida": -2, "energia": -2},
+            },
+            {
+                "texto": "Mantener a todos trabajando para adelantar el regreso",
+                "resultado": "La falta de descanso aumenta el agotamiento y el riesgo de error.",
+                "cambios": {"salud": -12, "moral": -12, "errores": 1},
+            },
+            {
+                "texto": "Dejar que los tres duerman al mismo tiempo",
+                "resultado": "La tripulación descansa, pero no queda nadie supervisando la nave.",
+                "cambios": {"salud": -8, "moral": 3, "integridad": -5, "errores": 1},
+            },
+            {
+                "texto": "Mantener la calefacción al máximo durante todo el descanso",
+                "resultado": "El calor ayuda, pero el consumo agota recursos esenciales.",
+                "cambios": {"salud": 3, "energia": -12, "agua": -5, "errores": 1},
+            },
+        ],
+    },
+    {
         "titulo": "Corregir la trayectoria hacia la Tierra",
         "fase": "REGRESO · PREPARACIÓN PARA EL AMERIZAJE",
         "texto": "La nave rodeó la Luna, pero la trayectoria debe apuntar con precisión al corredor de reentrada. La guía automática tiene poca energía.",
@@ -305,6 +343,41 @@ MISIONES = [
         ],
     },
     {
+        "titulo": "Confirmar la orientación manual",
+        "fase": "NAVEGACIÓN · REFERENCIAS VISUALES",
+        "texto": "La computadora guía está apagada para ahorrar energía. Antes de continuar, la tripulación debe comprobar la orientación de la nave con referencias visibles.",
+        "telemetria": ["Guía: apagada", "Tierra: visible", "Actitud: por confirmar"],
+        "correcta": 0,
+        "explicaciones": [
+            "Comparar la Tierra y las referencias acordadas con Houston permite confirmar que la nave apunta al corredor correcto.",
+            "La guía automática está apagada y no puede confirmar una maniobra; intentar encenderla también gasta batería.",
+            "Girar con los propulsores sin una referencia clara consume combustible y puede desestabilizar la nave.",
+            "Continuar sin verificar la actitud deja que un pequeño error se convierta en una desviación peligrosa.",
+        ],
+        "opciones": [
+            {
+                "texto": "Alinear la nave con la Tierra y confirmar los datos con Houston",
+                "resultado": "La referencia visual confirma la actitud y Houston valida el siguiente paso.",
+                "cambios": {"trayectoria": 12, "energia": -3, "integridad": 2, "moral": 1},
+            },
+            {
+                "texto": "Encender la guía automática aunque tenga poca batería",
+                "resultado": "El sistema consume energía sin completar una lectura fiable.",
+                "cambios": {"energia": -8, "trayectoria": -7, "errores": 1},
+            },
+            {
+                "texto": "Girar rápidamente con los propulsores de actitud",
+                "resultado": "La nave cambia de orientación, pero queda fuera del punto de referencia.",
+                "cambios": {"energia": -7, "trayectoria": -5, "integridad": -6, "errores": 1},
+            },
+            {
+                "texto": "Seguir sin comprobar la orientación",
+                "resultado": "La incertidumbre de rumbo se mantiene durante la aproximación.",
+                "cambios": {"trayectoria": -16, "moral": -5, "errores": 2},
+            },
+        ],
+    },
+    {
         "titulo": "Reactivar el módulo de mando",
         "fase": "PREPARACIÓN · CAMBIO AL MÓDULO DE MANDO",
         "texto": "Antes de regresar a la atmósfera, la tripulación debe reactivar Odyssey con las baterías limitadas y comprobar los sistemas esenciales.",
@@ -336,6 +409,41 @@ MISIONES = [
                 "texto": "Omitir la revisión del escudo térmico",
                 "resultado": "La cápsula se prepara para entrar sin confirmar su protección térmica.",
                 "cambios": {"integridad": -22, "salud": -10, "trayectoria": -5, "errores": 2},
+            },
+        ],
+    },
+    {
+        "titulo": "Separación de los módulos",
+        "fase": "LISTA DE REENTRADA · SECUENCIA DE SEPARACIÓN",
+        "texto": "Odyssey ya está reactivado. Houston pide separar el módulo de servicio y comprobar la cápsula antes de soltar Aquarius y comenzar la reentrada.",
+        "telemetria": ["Odyssey: operativo", "Módulo de servicio: dañado", "Aquarius: soporte vital activo"],
+        "correcta": 0,
+        "explicaciones": [
+            "Separar primero el módulo de servicio permite observar los daños; Aquarius se mantiene como respaldo hasta completar la lista.",
+            "Soltar Aquarius antes de confirmar Odyssey elimina el soporte vital de reserva demasiado pronto.",
+            "El módulo de servicio no debe permanecer unido durante la reentrada; su daño compromete la secuencia.",
+            "Separar varios módulos sin confirmar cada paso puede afectar la orientación y la seguridad de la cápsula.",
+        ],
+        "opciones": [
+            {
+                "texto": "Separar el módulo de servicio y verificar Odyssey antes de soltar Aquarius",
+                "resultado": "La tripulación confirma el daño y completa la secuencia de separación de forma controlada.",
+                "cambios": {"integridad": 6, "trayectoria": 3, "energia": -2, "salud": 1},
+            },
+            {
+                "texto": "Soltar Aquarius antes de comprobar el módulo de mando",
+                "resultado": "La tripulación pierde su último soporte vital de respaldo antes de estar lista.",
+                "cambios": {"oxigeno": -12, "salud": -10, "integridad": -8, "errores": 1},
+            },
+            {
+                "texto": "Mantener el módulo de servicio unido durante la reentrada",
+                "resultado": "La masa y los daños del módulo comprometen la configuración de entrada.",
+                "cambios": {"integridad": -20, "trayectoria": -12, "salud": -6, "errores": 1},
+            },
+            {
+                "texto": "Separar ambos módulos a la vez sin confirmar la secuencia",
+                "resultado": "La cápsula pierde estabilidad y Houston no puede verificar el resultado a tiempo.",
+                "cambios": {"integridad": -18, "trayectoria": -10, "moral": -8, "errores": 2},
             },
         ],
     },
