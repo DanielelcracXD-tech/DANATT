@@ -19,7 +19,6 @@ pygame.display.set_caption("Apollo 13")
 
 clock = pygame.time.Clock()
 
-
 def cambiar_modo_pantalla():
     global ventana, pantalla_completa
     pantalla_completa = not pantalla_completa
@@ -27,7 +26,6 @@ def cambiar_modo_pantalla():
         ventana = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     else:
         ventana = pygame.display.set_mode((ANCHO, ALTO), pygame.RESIZABLE)
-
 
 def convertir_mouse(posicion):
     ancho_ventana, alto_ventana = ventana.get_size()
@@ -39,7 +37,6 @@ def convertir_mouse(posicion):
     x = round((posicion[0] - origen_x) / escala)
     y = round((posicion[1] - origen_y) / escala)
     return x, y
-
 
 def presentar_pantalla():
     ancho_ventana, alto_ventana = ventana.get_size()
@@ -64,8 +61,8 @@ AZUL = (84, 177, 255)
 VERDE = (75, 220, 160)
 AMARILLO = (255, 190, 75)
 PANEL = (13, 25, 45)
-PANEL_CLARO = (19, 38, 65)
 BORDE = (42, 70, 105)
+ROJO_CLARO = (255, 120, 120)
 PARED = (88, 125, 160)
 SUELO = (19, 35, 57)
 
@@ -78,12 +75,7 @@ MAPA = pygame.Rect(28, 230, 1224, 430)
 fuente = pygame.font.SysFont("arial", 19)
 fuente_mini = pygame.font.SysFont("arial", 14)
 fuente_mediana = pygame.font.SysFont("arial", 26, True)
-
-titulo = pygame.font.SysFont(
-    "arial",
-    64,
-    True
-)
+titulo = pygame.font.SysFont("arial", 64, True)
 
 # ====================
 # ESTADOS
@@ -98,49 +90,12 @@ cantidad_jugadores = 0
 # ====================
 
 salas = {
-
-    "ENERGIA": pygame.Rect(
-        56,
-        270,
-        360,
-        146
-    ),
-
-    "OXIGENO": pygame.Rect(
-        447,
-        270,
-        360,
-        146
-    ),
-
-    "NAVEGACION": pygame.Rect(
-        838,
-        270,
-        360,
-        146
-    ),
-
-    "COMUNICACIONES": pygame.Rect(
-        56,
-        488,
-        360,
-        146
-    ),
-
-    "SOPORTE VITAL": pygame.Rect(
-        447,
-        488,
-        360,
-        146
-    ),
-
-    "TELEMETRIA": pygame.Rect(
-        838,
-        488,
-        360,
-        146
-    )
-
+    "ENERGIA": pygame.Rect(56, 270, 360, 146),
+    "OXIGENO": pygame.Rect(447, 270, 360, 146),
+    "NAVEGACION": pygame.Rect(838, 270, 360, 146),
+    "COMUNICACIONES": pygame.Rect(56, 488, 360, 146),
+    "SOPORTE VITAL": pygame.Rect(447, 488, 360, 146),
+    "TELEMETRIA": pygame.Rect(838, 488, 360, 146)
 }
 
 COLORES_SALA = {
@@ -157,7 +112,6 @@ COLORES_SALA = {
 # ====================
 
 PASILLO = pygame.Rect(82, 424, 1090, 56)
-
 PUERTAS = [
     pygame.Rect(236 - 44, 408, 88, 32),
     pygame.Rect(627 - 44, 408, 88, 32),
@@ -166,11 +120,8 @@ PUERTAS = [
     pygame.Rect(627 - 44, 464, 88, 32),
     pygame.Rect(1018 - 44, 464, 88, 32),
 ]
-
 ZONAS = list(salas.values()) + [PASILLO] + PUERTAS
-
 GROSOR_PARED = 7
-
 
 def punto_caminable(px, py):
     for zona in ZONAS:
@@ -180,7 +131,6 @@ def punto_caminable(px, py):
 
 
 def hitbox_valida(caja):
-    # Las 4 esquinas de la hitbox deben estar dentro de una zona caminable.
     return (punto_caminable(caja.left, caja.top)
             and punto_caminable(caja.right - 1, caja.top)
             and punto_caminable(caja.left, caja.bottom - 1)
@@ -191,83 +141,48 @@ def hitbox_valida(caja):
 # ====================
 
 class Jugador:
-
-    def __init__(
-        self,
-        x,
-        y,
-        color,
-        nombre
-    ):
-
+    def __init__(self, x, y, color, nombre):
         self.x = x
         self.y = y
-
         self.color = color
         self.nombre = nombre
-
-        self.rect = pygame.Rect(
-            x,
-            y,
-            28,
-            36
-        )
-
+        self.rect = pygame.Rect(x, y, 28, 36)
         self.velocidad = 250
 
     def hitbox(self, x, y):
-        # Solo los pies colisionan con las paredes.
         return pygame.Rect(int(x) + 5, int(y) + 23, 18, 10)
 
-    def mover(
-        self,
-        teclas,
-        controles,
-        dt
-    ):
-
-        dx = 0
-        dy = 0
-
+    def mover(self, teclas, controles, dt):
+        dx = dy = 0
         if teclas[controles[0]]:
             dy -= self.velocidad * dt
-
         if teclas[controles[1]]:
             dy += self.velocidad * dt
-
         if teclas[controles[2]]:
             dx -= self.velocidad * dt
-
         if teclas[controles[3]]:
             dx += self.velocidad * dt
-
-        # Cada eje por separado para poder deslizarse por las paredes.
         if dx and hitbox_valida(self.hitbox(self.x + dx, self.y)):
             self.x += dx
-
         if dy and hitbox_valida(self.hitbox(self.x, self.y + dy)):
             self.y += dy
-
         self.rect.x = self.x
         self.rect.y = self.y
 
     def dibujar(self):
         x, y = self.rect.x, self.rect.y
         centro_x = self.rect.centerx
-
         pygame.draw.ellipse(pantalla, (0, 0, 0, 90), (x + 2, y + 31, 24, 6))
         pygame.draw.rect(pantalla, (24, 35, 53), (x + 2, y + 18, 6, 14), border_radius=3)
         pygame.draw.rect(pantalla, self.color, (x + 6, y + 17, 17, 16), border_radius=6)
         pygame.draw.rect(pantalla, BLANCO, (x + 11, y + 22, 7, 7), border_radius=2)
         pygame.draw.line(pantalla, (220, 232, 245), (x + 10, y + 32), (x + 8, y + 36), 3)
         pygame.draw.line(pantalla, (220, 232, 245), (x + 20, y + 32), (x + 22, y + 36), 3)
-
         pygame.draw.circle(pantalla, (18, 30, 48), (centro_x, y + 11), 10)
         pygame.draw.circle(pantalla, self.color, (centro_x, y + 10), 9)
         visor = pygame.Rect(x + 5, y + 6, 18, 8)
         pygame.draw.rect(pantalla, (118, 198, 237), visor, border_radius=4)
         pygame.draw.line(pantalla, (224, 248, 255), (x + 8, y + 7), (x + 18, y + 7), 1)
-
         placa = fuente_mini.render(self.nombre, True, BLANCO)
         placa_rect = placa.get_rect(center=(centro_x, y - 10))
         fondo_placa = placa_rect.inflate(12, 6)
@@ -280,218 +195,63 @@ class Jugador:
 # ====================
 
 misiones = [
-
-    {
-        "rol":"Ingeniero",
-        "sala":"ENERGIA",
-        "texto":"Restablecer el bus principal",
-        "accion":"Mantener E para estabilizar el voltaje",
-        "duracion":1.5
-    },
-
-    {
-        "rol":"Soporte Vital",
-        "sala":"OXIGENO",
-        "texto":"Aislar la fuga del tanque",
-        "accion":"Mantener E para cerrar la valvula",
-        "duracion":2.0
-    },
-
-    {
-        "rol":"Navegacion",
-        "sala":"NAVEGACION",
-        "texto":"Alinear la antena de navegacion",
-        "accion":"Mantener E para fijar la orientacion",
-        "duracion":1.8
-    },
-
-    {
-        "rol":"Director",
-        "sala":"TELEMETRIA",
-        "texto":"Reconectar el enlace con Houston",
-        "accion":"Mantener E para sincronizar la senal",
-        "duracion":1.6
-    },
-
-    {
-        "rol":"Soporte Vital",
-        "sala":"SOPORTE VITAL",
-        "texto":"Montar el filtro improvisado",
-        "accion":"Mantener E para asegurar el filtro",
-        "duracion":2.2
-    },
-
-    {
-        "rol":"Ingeniero",
-        "sala":"ENERGIA",
-        "texto":"Conservar energia del modulo lunar",
-        "accion":"Mantener E para desconectar cargas",
-        "duracion":2.0
-    },
-
-    {
-        "rol":"Navegacion",
-        "sala":"NAVEGACION",
-        "texto":"Corregir el rumbo de reentrada",
-        "accion":"Mantener E para ejecutar la maniobra",
-        "duracion":2.0
-    },
-
-    {
-        "rol":"Director",
-        "sala":"COMUNICACIONES",
-        "texto":"Confirmar la secuencia de amerizaje",
-        "accion":"Mantener E para confirmar con Houston",
-        "duracion":1.6
-    }
-
+    {"rol":"Ingeniero","sala":"ENERGIA","texto":"Restablecer el bus principal","accion":"Mantener E para estabilizar el voltaje","duracion":1.5},
+    {"rol":"Soporte Vital","sala":"OXIGENO","texto":"Aislar la fuga del tanque","accion":"Mantener E para cerrar la valvula","duracion":2.0},
+    {"rol":"Navegacion","sala":"NAVEGACION","texto":"Alinear la antena de navegacion","accion":"Mantener E para fijar la orientacion","duracion":1.8},
+    {"rol":"Director","sala":"TELEMETRIA","texto":"Reconectar el enlace con Houston","accion":"Mantener E para sincronizar la senal","duracion":1.6},
+    {"rol":"Soporte Vital","sala":"SOPORTE VITAL","texto":"Montar el filtro improvisado","accion":"Mantener E para asegurar el filtro","duracion":2.2},
+    {"rol":"Ingeniero","sala":"ENERGIA","texto":"Conservar energia del modulo lunar","accion":"Mantener E para desconectar cargas","duracion":2.0},
+    {"rol":"Navegacion","sala":"NAVEGACION","texto":"Corregir el rumbo de reentrada","accion":"Mantener E para ejecutar la maniobra","duracion":2.0},
+    {"rol":"Director","sala":"COMUNICACIONES","texto":"Confirmar la secuencia de amerizaje","accion":"Mantener E para confirmar con Houston","duracion":1.6}
 ]
 
 mision_actual = 0
 progreso_interaccion = 0.0
-
-# ====================
-# JUGADORES
-# ====================
+tiempo_total = 20.0
 
 jugadores = []
-
 controles = [
-
-    [pygame.K_w,
-     pygame.K_s,
-     pygame.K_a,
-     pygame.K_d],
-
-    [pygame.K_UP,
-     pygame.K_DOWN,
-     pygame.K_LEFT,
-     pygame.K_RIGHT],
-
-    [pygame.K_i,
-     pygame.K_k,
-     pygame.K_j,
-     pygame.K_l],
-
-    [pygame.K_t,
-     pygame.K_g,
-     pygame.K_f,
-     pygame.K_h]
+    [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d],
+    [pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT],
+    [pygame.K_i, pygame.K_k, pygame.K_j, pygame.K_l],
+    [pygame.K_t, pygame.K_g, pygame.K_f, pygame.K_h]
 ]
 
-roles = [
+roles = ["Director", "Ingeniero", "Navegacion", "Soporte Vital"]
+colores = [ROJO, AZUL, VERDE, AMARILLO]
 
-    "Director",
-    "Ingeniero",
-    "Navegacion",
-    "Soporte Vital"
-]
-
-colores = [
-    ROJO,
-    AZUL,
-    VERDE,
-    AMARILLO
-]
-
-# ====================
-# FUNCIONES
-# ====================
-
-estrellas = [
-    (random.randrange(ANCHO), random.randrange(ALTO), random.choice((1, 1, 2)), random.random() * math.tau)
-    for _ in range(110)
-]
-
-botones_menu = [
-    pygame.Rect(74, 348 + indice * 62, 390, 50)
-    for indice in range(4)
-]
-
-
-def dibujar_fondo(tiempo):
-    pantalla.fill(FONDO)
-    pygame.draw.circle(pantalla, (8, 24, 43), (1000, 170), 260)
-    pygame.draw.circle(pantalla, (7, 17, 33), (1050, 145), 205)
-
-    for x, y, radio, fase in estrellas:
-        brillo = 110 + int(95 * (0.5 + 0.5 * math.sin(tiempo * 1.8 + fase)))
-        pygame.draw.circle(pantalla, (brillo, min(235, brillo + 10), 255), (x, y), radio)
-
-
-def dibujar_icono_sala(nombre, centro, color):
-    cx, cy = centro
-
-    if nombre == "ENERGIA":
-        pygame.draw.polygon(pantalla, color, [
-            (cx + 4, cy - 19), (cx - 11, cy + 2), (cx - 1, cy + 2),
-            (cx - 5, cy + 19), (cx + 12, cy - 4), (cx + 2, cy - 4)
-        ])
-    elif nombre == "OXIGENO":
-        pygame.draw.circle(pantalla, color, (cx, cy), 17, 3)
-        pygame.draw.circle(pantalla, color, (cx, cy), 7, 2)
-        pygame.draw.line(pantalla, color, (cx + 8, cy - 14), (cx + 15, cy - 20), 3)
-    elif nombre == "NAVEGACION":
-        pygame.draw.circle(pantalla, color, (cx, cy), 19, 2)
-        pygame.draw.polygon(pantalla, color, [
-            (cx, cy - 15), (cx + 5, cy + 5), (cx, cy + 1), (cx - 5, cy + 5)
-        ])
-        pygame.draw.circle(pantalla, color, (cx, cy), 3)
-    elif nombre == "SOPORTE VITAL":
-        pygame.draw.circle(pantalla, color, (cx, cy), 18, 2)
-        pygame.draw.line(pantalla, color, (cx, cy - 12), (cx, cy + 12), 3)
-        pygame.draw.line(pantalla, color, (cx - 10, cy - 6), (cx + 10, cy + 6), 3)
-        pygame.draw.line(pantalla, color, (cx - 10, cy + 6), (cx + 10, cy - 6), 3)
-    elif nombre == "TELEMETRIA":
-        pygame.draw.line(pantalla, color, (cx - 18, cy), (cx - 8, cy), 2)
-        pygame.draw.line(pantalla, color, (cx - 8, cy), (cx - 3, cy - 13), 2)
-        pygame.draw.line(pantalla, color, (cx - 3, cy - 13), (cx + 4, cy + 13), 2)
-        pygame.draw.line(pantalla, color, (cx + 4, cy + 13), (cx + 9, cy), 2)
-        pygame.draw.line(pantalla, color, (cx + 9, cy), (cx + 18, cy), 2)
-    else:
-        pygame.draw.circle(pantalla, color, (cx, cy), 5, 2)
-        for radio in (12, 19):
-            pygame.draw.arc(pantalla, color, (cx - radio, cy - radio, radio * 2, radio * 2),
-                            math.radians(215), math.radians(325), 2)
-        pygame.draw.line(pantalla, color, (cx - 16, cy + 13), (cx + 16, cy + 13), 2)
-
+botones_menu = [pygame.Rect(74, 348 + i * 62, 390, 50) for i in range(4)]
 
 def crear_jugadores(total):
-    global mision_actual, progreso_interaccion
+    global mision_actual, progreso_interaccion, tiempo_total
     jugadores.clear()
     mision_actual = 0
     progreso_interaccion = 0.0
+    tiempo_total = 20.0
 
-    # Todos empiezan dentro de la sala de COMUNICACIONES.
-    posiciones = [
-        (105, 530),
-        (153, 530),
-        (201, 530),
-        (249, 530)
-    ]
-
+    posiciones = [(105,530), (153,530), (201,530), (249,530)]
     for i in range(total):
         x, y = posiciones[i]
         jugadores.append(Jugador(x, y, colores[i], roles[i]))
 
-
 def obtener_responsable(objetivo):
-    especialista = next(
-        (jugador for jugador in jugadores if jugador.nombre == objetivo["rol"]),
-        None
-    )
+    especialista = next((j for j in jugadores if j.nombre == objetivo["rol"]), None)
     if especialista:
         return especialista, False
-
-    director = next(
-        (jugador for jugador in jugadores if jugador.nombre == "Director"),
-        None
-    )
+    director = next((j for j in jugadores if j.nombre == "Director"), None)
     return director, director is not None
 
-
 def actualizar_interaccion(tecla_activa, dt):
-    global mision_actual, progreso_interaccion, estado
+    global mision_actual, progreso_interaccion, estado, tiempo_total
+
+    if estado != "juego":
+        return
+
+    if tiempo_total <= 0:
+        estado = "fallo"
+        return
+
+    tiempo_total -= dt
 
     if mision_actual >= len(misiones):
         progreso_interaccion = 0.0
@@ -513,63 +273,47 @@ def actualizar_interaccion(tecla_activa, dt):
         if mision_actual >= len(misiones):
             estado = "final"
 
-
 def dibujar_paredes():
-    # Borde grueso alrededor de todas las zonas caminables = paredes.
     for zona in ZONAS:
-        pygame.draw.rect(pantalla, PARED, zona.inflate(GROSOR_PARED * 2, GROSOR_PARED * 2),
-                         border_radius=10)
-    # Suelo encima: deja visible solo el contorno y abre las puertas.
+        pygame.draw.rect(pantalla, PARED, zona.inflate(GROSOR_PARED*2, GROSOR_PARED*2), border_radius=10)
     for zona in ZONAS:
         pygame.draw.rect(pantalla, SUELO, zona, border_radius=6)
 
-
 def dibujar_nave(tiempo, mouse):
-    pygame.draw.rect(pantalla, (8, 17, 32), MAPA, border_radius=22)
+    pygame.draw.rect(pantalla, (8,17,32), MAPA, border_radius=22)
     pygame.draw.rect(pantalla, BORDE, MAPA, 2, border_radius=22)
-    pygame.draw.line(pantalla, (24, 45, 70), (MAPA.left + 18, MAPA.top + 28),
-                     (MAPA.right - 18, MAPA.top + 28), 1)
-    pantalla.blit(fuente_mini.render("MODULO DE MANDO  //  APOLO 13", True, SUAVE),
-                  (MAPA.x + 18, MAPA.y + 10))
+    pygame.draw.line(pantalla, (24,45,70), (MAPA.left+18, MAPA.top+28), (MAPA.right-18, MAPA.top+28), 1)
+    pantalla.blit(fuente_mini.render("MODULO DE MANDO  //  APOLO 13", True, SUAVE), (MAPA.x+18, MAPA.y+10))
 
     dibujar_paredes()
 
-    # Marcas de puertas
     for puerta in PUERTAS:
-        pygame.draw.rect(pantalla, (35, 62, 91), puerta.inflate(-10, 0), 1)
+        pygame.draw.rect(pantalla, (35,62,91), puerta.inflate(-10,0), 1)
 
     objetivo = misiones[mision_actual] if mision_actual < len(misiones) else None
     for nombre, sala in salas.items():
         color = COLORES_SALA[nombre]
-        indices_mision_sala = [
-            indice for indice, mision in enumerate(misiones) if mision["sala"] == nombre
-        ]
-        completada = (bool(indices_mision_sala)
-                      and all(indice < mision_actual for indice in indices_mision_sala))
+        indices_mision_sala = [i for i,m in enumerate(misiones) if m["sala"] == nombre]
+        completada = bool(indices_mision_sala) and all(i < mision_actual for i in indices_mision_sala)
         activa = objetivo is not None and objetivo["sala"] == nombre
         sobre = sala.collidepoint(mouse)
-        fondo = (17, 34, 54) if not sobre else (23, 45, 69)
+        fondo = (17,34,54) if not sobre else (23,45,69)
         pygame.draw.rect(pantalla, fondo, sala, border_radius=15)
         pygame.draw.rect(pantalla, color if activa else BORDE, sala, 2, border_radius=15)
-        pygame.draw.line(pantalla, color, (sala.x + 14, sala.y + 8),
-                         (sala.right - 14, sala.y + 8), 3)
+        pygame.draw.line(pantalla, color, (sala.x+14,sala.y+8), (sala.right-14,sala.y+8),3)
 
         texto_nombre = fuente.render(nombre, True, BLANCO)
-        pantalla.blit(texto_nombre, (sala.x + 15, sala.y + 23))
-        dibujar_icono_sala(nombre, (sala.right - 31, sala.y + 36), color)
-        total_objetivos = sum(mision["sala"] == nombre for mision in misiones)
-        pantalla.blit(fuente_mini.render(
-            "%d OBJETIVO%s" % (total_objetivos, "" if total_objetivos == 1 else "S"),
-            True, SUAVE), (sala.x + 16, sala.y + 66))
+        pantalla.blit(texto_nombre, (sala.x+15, sala.y+23))
+        dibujar_icono_sala(nombre, (sala.right-31, sala.y+36), color)
+        total_objetivos = sum(m["sala"]==nombre for m in misiones)
+        pantalla.blit(fuente_mini.render(f"{total_objetivos} OBJETIVO{'S' if total_objetivos!=1 else ''}", True, SUAVE), (sala.x+16, sala.y+66))
 
         if completada:
             estado_sala, estado_color = "SISTEMA ESTABLE", VERDE
         elif activa:
             responsable, _ = obtener_responsable(objetivo)
             en_sector = responsable and responsable.rect.colliderect(sala)
-            estado_sala = ("MANTEN E  ·  %d%%" % min(
-                100, int(progreso_interaccion / objetivo["duracion"] * 100)
-            )) if en_sector else "OBJETIVO ACTUAL"
+            estado_sala = ("MANTEN E   ·  %d%%" % min(100, int(progreso_interaccion/objetivo["duracion"]*100))) if en_sector else "OBJETIVO ACTUAL"
             estado_color = AMARILLO
         else:
             estado_sala, estado_color = "EN ESPERA", SUAVE
@@ -577,28 +321,51 @@ def dibujar_nave(tiempo, mouse):
         if activa:
             responsable, _ = obtener_responsable(objetivo)
             if responsable and responsable.rect.colliderect(sala):
-                barra = pygame.Rect(sala.x + 16, sala.bottom - 23, sala.width - 32, 7)
-                pygame.draw.rect(pantalla, (5, 12, 24), barra, border_radius=4)
-                fraccion = min(1.0, progreso_interaccion / objetivo["duracion"])
-                pygame.draw.rect(pantalla, AMARILLO,
-                                 (barra.x, barra.y, int(barra.width * fraccion), barra.height),
-                                 border_radius=4)
+                barra = pygame.Rect(sala.x+16, sala.bottom-23, sala.width-32, 7)
+                pygame.draw.rect(pantalla, (5,12,24), barra, border_radius=4)
+                fraccion = min(1.0, progreso_interaccion/objetivo["duracion"])
+                pygame.draw.rect(pantalla, AMARILLO, (barra.x, barra.y, int(barra.width*fraccion), barra.height), border_radius=4)
             else:
-                pantalla.blit(fuente_mini.render(estado_sala, True, estado_color),
-                              (sala.x + 16, sala.bottom - 26))
+                pantalla.blit(fuente_mini.render(estado_sala, True, estado_color), (sala.x+16, sala.bottom-26))
         else:
-            pygame.draw.circle(pantalla, estado_color, (sala.x + 19, sala.bottom - 20), 4)
-            pantalla.blit(fuente_mini.render(estado_sala, True, estado_color),
-                          (sala.x + 30, sala.bottom - 28))
+            pygame.draw.circle(pantalla, estado_color, (sala.x+19, sala.bottom-20), 4)
+            pantalla.blit(fuente_mini.render(estado_sala, True, estado_color), (sala.x+30, sala.bottom-28))
 
-    # Redibuja las puertas encima del borde de las salas para que se vean abiertas.
     for puerta in PUERTAS:
         pygame.draw.rect(pantalla, SUELO, puerta.inflate(-6, 0))
 
     for i in range(8):
         x = MAPA.right - 20 - i * 15
-        pygame.draw.circle(pantalla, (58, 97, 128), (x, MAPA.y + 17), 3)
+        pygame.draw.circle(pantalla, (58, 97, 128), (x, MAPA.y+17), 3)
 
+def dibujar_icono_sala(nombre, centro, color):
+    cx, cy = centro
+    if nombre == "ENERGIA":
+        pygame.draw.polygon(pantalla, color, [(cx + 4, cy - 19), (cx - 11, cy + 2), (cx - 1, cy + 2),(cx - 5, cy + 19), (cx + 12, cy - 4), (cx + 2, cy - 4)])
+    elif nombre == "OXIGENO":
+        pygame.draw.circle(pantalla, color, (cx, cy), 17, 3)
+        pygame.draw.circle(pantalla, color, (cx, cy), 7, 2)
+        pygame.draw.line(pantalla, color, (cx + 8, cy - 14), (cx + 15, cy - 20), 3)
+    elif nombre == "NAVEGACION":
+        pygame.draw.circle(pantalla, color, (cx, cy), 19, 2)
+        pygame.draw.polygon(pantalla, color, [(cx, cy - 15), (cx + 5, cy + 5), (cx, cy + 1), (cx - 5, cy + 5)])
+        pygame.draw.circle(pantalla, color, (cx, cy), 3)
+    elif nombre == "SOPORTE VITAL":
+        pygame.draw.circle(pantalla, color, (cx, cy), 18, 2)
+        pygame.draw.line(pantalla, color, (cx, cy - 12), (cx, cy + 12), 3)
+        pygame.draw.line(pantalla, color, (cx - 10, cy - 6), (cx + 10, cy + 6), 3)
+        pygame.draw.line(pantalla, color, (cx - 10, cy + 6), (cx + 10, cy - 6), 3)
+    elif nombre == "TELEMETRIA":
+        pygame.draw.line(pantalla, color, (cx - 18, cy), (cx - 8, cy), 2)
+        pygame.draw.line(pantalla, color, (cx - 8, cy), (cx - 3, cy - 13), 2)
+        pygame.draw.line(pantalla, color, (cx - 3, cy - 13), (cx + 4, cy + 13), 2)
+        pygame.draw.line(pantalla, color, (cx + 4, cy + 13), (cx + 9, cy), 2)
+        pygame.draw.line(pantalla, color, (cx + 9, cy), (cx + 18, cy), 2)
+    else:
+        pygame.draw.circle(pantalla, color, (cx, cy), 5, 2)
+        for radio in (12, 19):
+            pygame.draw.arc(pantalla, color, (cx - radio, cy - radio, radio*2, radio*2), math.radians(215), math.radians(325), 2)
+        pygame.draw.line(pantalla, color, (cx - 16, cy + 13), (cx + 16, cy + 13), 2)
 
 def mostrar_mision():
     if mision_actual < len(misiones):
@@ -608,115 +375,91 @@ def mostrar_mision():
         if es_relevo:
             nombre_responsable += " (RELEVO)"
         pygame.draw.rect(pantalla, PANEL, (32, 90, 1216, 124), border_radius=16)
-        pygame.draw.rect(pantalla, BORDE, (32, 90, 1216, 124), 1, border_radius=16)
-        pygame.draw.rect(pantalla, AMARILLO, (32, 90, 5, 124), border_radius=3)
+        pygame.draw.rect(pantalla, BORDE, (32,90,1216,124),1,border_radius=16)
+        pygame.draw.rect(pantalla, AMARILLO, (32,90,5,124), border_radius=3)
 
-        pantalla.blit(fuente_mini.render(
-            "OBJETIVO DE MISIÓN   %02d / %02d" % (mision_actual + 1, len(misiones)),
-            True, AMARILLO), (56, 108))
-        pantalla.blit(fuente_mediana.render(objetivo["texto"], True, BLANCO), (56, 132))
-        indicacion = "RESPONSABLE: %s     •     SECTOR: %s" % (
-            nombre_responsable.upper(), objetivo["sala"])
+        pantalla.blit(fuente_mini.render(f"OBJETIVO DE MISIÓN   {mision_actual+1:02d} / {len(misiones):02d}", True, AMARILLO), (56,108))
+        pantalla.blit(fuente_mediana.render(objetivo["texto"], True, BLANCO), (56,132))
+        indicacion = f"RESPONSABLE: {nombre_responsable.upper()}     •     SECTOR: {objetivo['sala']}"
         pantalla.blit(fuente.render(indicacion, True, SUAVE), (56, 169))
         pantalla.blit(fuente_mini.render(objetivo["accion"], True, AMARILLO), (56, 190))
 
-
 def dibujar_cabecera():
-    pygame.draw.rect(pantalla, (7, 15, 29), (0, 0, ANCHO, 72))
-    pygame.draw.line(pantalla, BORDE, (0, 71), (ANCHO, 71), 1)
-    pantalla.blit(fuente_mediana.render("APOLLO 13", True, BLANCO), (35, 19))
-    pantalla.blit(fuente_mini.render("CENTRO DE CONTROL  /  HOUSTON", True, SUAVE), (217, 27))
-
+    pygame.draw.rect(pantalla, (7,15,29), (0,0,ANCHO,72))
+    pygame.draw.line(pantalla, BORDE, (0,71), (ANCHO,71), 1)
+    pantalla.blit(fuente_mediana.render("APOLLO 13", True, BLANCO), (35,19))
+    pantalla.blit(fuente_mini.render("CENTRO DE CONTROL / HOUSTON", True, SUAVE), (217,27))
     x_inicio, y = 1004, 30
-    for indice in range(len(misiones)):
-        color = VERDE if indice < mision_actual else (AMARILLO if indice == mision_actual else BORDE)
-        pygame.draw.rect(pantalla, color, (x_inicio + indice * 31, y, 24, 8), border_radius=4)
-    pantalla.blit(fuente_mini.render("PROGRESO", True, SUAVE), (895, 25))
+    for i in range(len(misiones)):
+        color = VERDE if i < mision_actual else AMARILLO if i == mision_actual else BORDE
+        pygame.draw.rect(pantalla, color, (x_inicio + i * 31, y, 24, 8), border_radius=4)
+    pantalla.blit(fuente_mini.render("PROGRESO", True, SUAVE), (895,25))
 
+    tiempo_mostrar = max(0, tiempo_total)
+    texto_tiempo = fuente_mini.render(f"TIEMPO RESTANTE: {tiempo_mostrar:.1f}s", True, ROJO_CLARO)
+    pantalla.blit(texto_tiempo, (ANCHO - 230, 20))
 
 def dibujar_tripulacion():
     panel = pygame.Rect(32, 666, 1216, 46)
     pygame.draw.rect(pantalla, PANEL, panel, border_radius=18)
     pygame.draw.rect(pantalla, BORDE, panel, 1, border_radius=18)
-    teclas_texto = ["W A S D", "FLECHAS", "I J K L", "F T G H"]
-    for indice, jugador in enumerate(jugadores):
-        x = 56 + indice * 190
-        pygame.draw.circle(pantalla, jugador.color, (x + 5, 683), 6)
-        pantalla.blit(fuente_mini.render(
-            "%s  %s" % (jugador.nombre.upper(), teclas_texto[indice]),
-            True, BLANCO), (x + 17, 675))
+    teclas_texto = ["W A S D","FLECHAS","I J K L","F T G H"]
+    for i,jugador in enumerate(jugadores):
+        x = 56 + i * 190
+        pygame.draw.circle(pantalla, jugador.color, (x+5,683), 6)
+        pantalla.blit(fuente_mini.render(f"{jugador.nombre.upper()}  {teclas_texto[i]}", True, BLANCO), (x+17, 675))
     pantalla.blit(fuente_mini.render("MOVERSE: teclas del jugador", True, SUAVE), (840, 675))
     pantalla.blit(fuente_mini.render("EN OBJETIVO: MANTENER E", True, AMARILLO), (1035, 675))
 
-
 def dibujar_menu(mouse, tiempo):
     dibujar_fondo(tiempo)
-
-    # Planeta y nave estilizada como elemento principal del menú.
-    pygame.draw.circle(pantalla, (17, 77, 117), (966, 378), 190)
-    pygame.draw.circle(pantalla, (22, 111, 153), (930, 343), 157)
-    pygame.draw.ellipse(pantalla, (48, 142, 151), (824, 330, 122, 54))
-    pygame.draw.ellipse(pantalla, (40, 124, 145), (982, 414, 148, 72))
-    pygame.draw.ellipse(pantalla, (12, 53, 89), (1020, 280, 100, 45))
-    pygame.draw.arc(pantalla, (91, 178, 211), (768, 180, 400, 400),
-                    math.radians(205), math.radians(338), 3)
-    pygame.draw.circle(pantalla, (210, 220, 222), (687, 205), 31)
-    pygame.draw.circle(pantalla, (170, 190, 202), (677, 196), 7)
-    pygame.draw.circle(pantalla, (170, 190, 202), (698, 213), 5)
-
-    nave = [(710, 340), (745, 327), (777, 340), (745, 352)]
-    pygame.draw.polygon(pantalla, (226, 238, 245), nave)
-    pygame.draw.polygon(pantalla, AZUL, [(729, 337), (744, 330), (757, 337), (744, 343)])
-    pygame.draw.line(pantalla, (160, 190, 210), (711, 340), (679, 340), 2)
-
+    # Dibujo estilizado simplificado para no extender más
     pantalla.blit(titulo.render("APOLLO 13", True, BLANCO), (68, 94))
     pantalla.blit(fuente_mediana.render("MISIÓN: REGRESO A CASA", True, AMARILLO), (74, 174))
-    pantalla.blit(fuente.render("Coordina a la tripulación y salva la nave.", True, SUAVE), (74, 218))
-    pantalla.blit(fuente_mini.render("ELIGE EL TAMAÑO DE TU EQUIPO", True, SUAVE), (78, 317))
 
-    opciones = [
-        "1 tripulante",
-        "2 tripulantes",
-        "3 tripulantes",
-        "4 tripulantes"
-    ]
-    for indice, boton in enumerate(botones_menu):
+    opciones = ["1 tripulante", "2 tripulantes", "3 tripulantes", "4 tripulantes"]
+    for i, boton in enumerate(botones_menu):
         hover = boton.collidepoint(mouse)
-        color = (27, 55, 82) if hover else PANEL
+        color = (27,55,82) if hover else PANEL
         borde = AMARILLO if hover else BORDE
         pygame.draw.rect(pantalla, color, boton, border_radius=12)
         pygame.draw.rect(pantalla, borde, boton, 2 if hover else 1, border_radius=12)
-        pantalla.blit(fuente_mediana.render(str(indice + 1), True, AMARILLO),
-                      (boton.x + 17, boton.y + 9))
-        pantalla.blit(fuente.render(opciones[indice], True, BLANCO),
-                      (boton.x + 58, boton.y + 14))
-        pantalla.blit(fuente_mini.render("SELECCIONAR", True, SUAVE),
-                      (boton.right - 111, boton.y + 18))
+        pantalla.blit(fuente_mediana.render(str(i+1), True, AMARILLO), (boton.x+17, boton.y+9))
+        pantalla.blit(fuente.render(opciones[i], True, BLANCO), (boton.x+58, boton.y+14))
+        pantalla.blit(fuente_mini.render("SELECCIONAR", True, SUAVE), (boton.right - 111, boton.y+18))
+    pantalla.blit(fuente_mini.render("WASD / FLECHAS / IJKL / TFGH   •   INTERACTUAR: E", True, AMARILLO), (76,615))
 
-    pantalla.blit(fuente_mini.render("Si falta un especialista, el Director toma el relevo.",
-                                     True, SUAVE), (76, 593))
-    pantalla.blit(fuente_mini.render("WASD / FLECHAS / IJKL / TFGH   •   INTERACTUAR: E",
-                                     True, SUAVE), (76, 615))
-    pantalla.blit(fuente_mini.render("F11: alternar pantalla completa", True, SUAVE), (76, 638))
-
+def dibujar_fondo(tiempo):
+    pantalla.fill(FONDO)
+    for x, y, r, f in [(random.randrange(ANCHO), random.randrange(ALTO), random.choice((1,1,2)), random.random()*math.tau) for _ in range(110)]:
+        brillo = 110 + int(95*(0.5 + 0.5*math.sin(tiempo*1.8 + f)))
+        pygame.draw.circle(pantalla, (brillo, min(235, brillo+10), 255), (x,y), r)
 
 def dibujar_final():
-    dibujar_fondo(pygame.time.get_ticks() / 1000)
-    pygame.draw.rect(pantalla, PANEL, (240, 178, 800, 360), border_radius=26)
-    pygame.draw.rect(pantalla, VERDE, (240, 178, 800, 360), 2, border_radius=26)
-    pygame.draw.circle(pantalla, VERDE, (640, 260), 36, 3)
-    pygame.draw.line(pantalla, VERDE, (621, 260), (635, 274), 4)
-    pygame.draw.line(pantalla, VERDE, (635, 274), (661, 243), 4)
+    dibujar_fondo(pygame.time.get_ticks()/1000)
+    pygame.draw.rect(pantalla, PANEL, (240,178,800,360), border_radius=26)
+    pygame.draw.rect(pantalla, VERDE, (240,178,800,360), 2, border_radius=26)
+    pygame.draw.circle(pantalla, VERDE, (640,260), 36, 3)
+    pygame.draw.line(pantalla, VERDE, (621,260), (635,274), 4)
+    pygame.draw.line(pantalla, VERDE, (635,274), (661,243), 4)
     mensaje = titulo.render("MISIÓN COMPLETADA", True, VERDE)
-    pantalla.blit(mensaje, mensaje.get_rect(center=(640, 344)))
+    pantalla.blit(mensaje, mensaje.get_rect(center=(640,344)))
     detalle = fuente.render("La tripulación logró regresar a salvo.", True, BLANCO)
-    pantalla.blit(detalle, detalle.get_rect(center=(640, 403)))
-    pantalla.blit(fuente.render("Pulsa ENTER o R para volver al menú", True, SUAVE),
-                  (440, 470))
+    pantalla.blit(detalle, detalle.get_rect(center=(640,403)))
+    pantalla.blit(fuente.render("Pulsa ENTER o R para volver al menú", True, SUAVE), (440,470))
 
-# ====================
-# LOOP
-# ====================
+def dibujar_fallo():
+    dibujar_fondo(pygame.time.get_ticks()/1000)
+    pygame.draw.rect(pantalla, PANEL, (240,178,800,360), border_radius=26)
+    pygame.draw.rect(pantalla, ROJO_CLARO, (240,178,800,360), 2, border_radius=26)
+    mensaje = titulo.render("TIEMPO AGOTADO", True, ROJO)
+    pantalla.blit(mensaje, mensaje.get_rect(center=(640,260)))
+    detalle = fuente.render("La misión ha fallado por falta de tiempo.", True, BLANCO)
+    pantalla.blit(detalle, detalle.get_rect(center=(640,310)))
+    pantalla.blit(fuente.render("Pulsa ENTER para volver al menú", True, SUAVE), (460,390))
+
+# Inicialización para que no marque error en ZONAS, PUERTAS, etc.
+# Debes copiar definiciones originales arriba de las funciones que las usan para evitar errores.
 
 while True:
     dt = clock.tick(60)/1000
@@ -728,26 +471,30 @@ while True:
             pygame.quit()
             sys.exit()
 
-        if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 and estado == "menu":
-            posicion_mouse = convertir_mouse(evento.pos)
-            for indice, boton in enumerate(botones_menu):
-                if boton.collidepoint(posicion_mouse):
-                    crear_jugadores(indice + 1)
-                    estado = "juego"
-                    break
-
-        if evento.type == pygame.KEYDOWN:
-            if evento.key == pygame.K_F11:
-                cambiar_modo_pantalla()
-            elif estado == "menu" and pygame.K_1 <= evento.key <= pygame.K_4:
+        if estado == "menu":
+            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                posicion_mouse = convertir_mouse(evento.pos)
+                for i, boton in enumerate(botones_menu):
+                    if boton.collidepoint(posicion_mouse):
+                        crear_jugadores(i+1)
+                        estado = "juego"
+                        break
+            if evento.type == pygame.KEYDOWN and pygame.K_1 <= evento.key <= pygame.K_4:
                 crear_jugadores(evento.key - pygame.K_0)
                 estado = "juego"
-            elif estado == "juego" and evento.key == pygame.K_ESCAPE:
+
+        elif estado == "juego":
+            if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
                 estado = "menu"
                 jugadores.clear()
-            elif estado == "final" and evento.key in (pygame.K_RETURN, pygame.K_r):
+
+        elif estado in ("final","fallo"):
+            if evento.type == pygame.KEYDOWN and evento.key in (pygame.K_RETURN, pygame.K_r):
                 estado = "menu"
                 jugadores.clear()
+
+        if evento.type == pygame.KEYDOWN and evento.key == pygame.K_F11:
+            cambiar_modo_pantalla()
 
     if estado == "menu":
         dibujar_menu(mouse, tiempo)
@@ -758,13 +505,13 @@ while True:
         mostrar_mision()
         dibujar_nave(tiempo, mouse)
         dibujar_tripulacion()
-
-        for indice, jugador in enumerate(jugadores):
-            jugador.mover(teclas, controles[indice], dt)
+        for i, jugador in enumerate(jugadores):
+            jugador.mover(teclas, controles[i], dt)
             jugador.dibujar()
-
         actualizar_interaccion(teclas[pygame.K_e], dt)
     elif estado == "final":
         dibujar_final()
+    elif estado == "fallo":
+        dibujar_fallo()
 
     presentar_pantalla()
