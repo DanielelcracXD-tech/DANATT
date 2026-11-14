@@ -1,5 +1,6 @@
 import pygame
 import sys
+import time
 
 pygame.init()
 
@@ -209,7 +210,6 @@ while True:
                 if btn_tanques.click(pos):
 
                     energia -= 5
-
                     mensaje_houston = (
                         "Houston: Tanques revisados."
                     )
@@ -219,7 +219,9 @@ while True:
                 elif btn_com.click(pos):
 
                     energia -= 10
-
+                    if energia <= 0:
+                        time.sleep(.5)
+                        estado = "perdido"
                     mensaje_houston = (
                         "Houston: Comunicaciones OK."
                     )
@@ -249,7 +251,9 @@ while True:
                 elif btn_nav.click(pos):
 
                     energia -= 20
-
+                    if energia <= 0:
+                        time.sleep(.5)
+                        estado = "perdido"
                     mensaje_houston = (
                         "Perdiste tiempo valioso."
                     )
@@ -257,6 +261,10 @@ while True:
                 elif btn_fc3.click(pos):
 
                     energia -= 10
+
+                    if energia <= 0:
+                        time.sleep(.5)
+                        estado = "perdido"
 
                     mensaje_houston = (
                         "FC3 sigue fuera de servicio."
@@ -279,6 +287,9 @@ while True:
                 elif btn_cm.click(pos):
 
                     energia -= 40
+                    if energia <= 0:
+                        time.sleep(.5)
+                        estado = "perdido"
 
                     mensaje_houston = (
                         "Error. El modulo de mando pierde energia."
@@ -420,6 +431,34 @@ while True:
 
         pantalla.blit(txt,(300,320))
 
+    #Perdiste
+
+    elif estado == "perdido":
+
+        titulo = titulo_font.render(
+            "FIN DE MISION",
+            True,
+            BLANCO
+        )
+
+        pantalla.blit(titulo,(400,150))
+
+        if energia > 40:
+
+            resultado = "AMERIZAJE EXITOSO"
+
+        else:
+
+            resultado = "MISION COMPROMETIDA"
+
+        txt = titulo_font.render(
+            resultado,
+            True,
+            VERDE
+        )
+
+        pantalla.blit(txt,(300,320))
+
     # MENSAJES HOUSTON
 
     pygame.draw.rect(
@@ -438,4 +477,3 @@ while True:
 
     pygame.display.update()
     clock.tick(60)
-
