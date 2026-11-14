@@ -443,18 +443,12 @@ while True:
 
         pantalla.blit(titulo,(400,150))
 
-        if energia > 40:
-
-            resultado = "AMERIZAJE EXITOSO"
-
-        else:
-
-            resultado = "MISION COMPROMETIDA"
+        resultado = "TE HAS QUEDADO SIN ENERGÍA"
 
         txt = titulo_font.render(
             resultado,
             True,
-            VERDE
+            ROJO
         )
 
         pantalla.blit(txt,(300,320))
