@@ -11,6 +11,7 @@ ANCHO = 1100
 ALTO = 720
 FPS = 60
 ESPERA_REVISION = 10.0
+TIEMPO_POR_MISION = 35.0
 
 pantalla = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("Apolo 13 | Regreso a casa")
@@ -278,14 +279,14 @@ def panel(rect, titulo=None):
 
 def nuevo_estado():
     return {
-        "oxigeno": 94,
-        "energia": 92,
-        "agua": 88,
-        "comida": 88,
-        "co2": 10,
-        "integridad": 96,
-        "moral": 84,
-        "trayectoria": 54,
+        "oxigeno": 82,
+        "energia": 78,
+        "agua": 75,
+        "comida": 78,
+        "co2": 18,
+        "integridad": 86,
+        "moral": 76,
+        "trayectoria": 42,
         "errores": 0,
     }
 
@@ -335,6 +336,8 @@ def reiniciar():
         "mensaje": "Houston conectado. Esperando al director de misión.",
         "revision_restante": None,
         "fallo_pendiente": False,
+        "tiempo_restante": TIEMPO_POR_MISION,
+        "tiempo_agotado": False,
     }
 
 
@@ -348,8 +351,31 @@ def continuar_revision(partida):
         partida["respuesta"] = None
         partida["indice_elegido"] = None
         partida["mensaje"] = "Houston: " + MISIONES[partida["mision"]]["titulo"] + "."
+        partida["tiempo_restante"] = TIEMPO_POR_MISION
+        partida["tiempo_agotado"] = False
     partida["revision_restante"] = None
     partida["fallo_pendiente"] = False
+
+
+def actualizar_reloj_mision(partida, dt):
+    if partida["pantalla"] != "mision" or partida["respuesta"] is not None:
+        return
+
+    partida["tiempo_restante"] = max(0.0, partida["tiempo_restante"] - dt)
+    datos = partida["recursos"]
+    datos["oxigeno"] = max(0, datos["oxigeno"] - dt * 0.20)
+    datos["energia"] = max(0, datos["energia"] - dt * 0.25)
+    datos["co2"] = min(100, datos["co2"] + dt * 0.12)
+
+    if any(datos[clave] <= 0 for clave in ("oxigeno", "energia", "integridad", "moral")):
+        partida["pantalla"] = "fallo"
+        partida["mensaje"] = "La espera agotó un recurso crítico antes de tomar una decisión."
+        return
+
+    if partida["tiempo_restante"] <= 0:
+        opciones = MISIONES[partida["mision"]]["opciones"]
+        indice = len(opciones) - 1
+        aplicar_opcion(partida, opciones[indice], indice, por_tiempo=True)
 
 
 def actualizar_revision(partida, dt):
@@ -376,7 +402,10 @@ def dibujar_revision(partida):
     encabezado = fuente_subtitulo.render("REVISIÓN DE MISIÓN %d / %d" % (partida["mision"] + 1, len(MISIONES)), True, NARANJA)
     pantalla.blit(encabezado, (78, 55))
 
-    if seleccionada == recomendada:
+    if partida["tiempo_agotado"]:
+        estado = "TIEMPO AGOTADO · SE APLICÓ UNA ACCIÓN DE EMERGENCIA"
+        color_estado = ROJO
+    elif seleccionada == recomendada:
         estado = "ELEGISTE LA RESPUESTA RECOMENDADA"
         color_estado = VERDE
     else:
@@ -443,11 +472,11 @@ def dibujar_revision(partida):
         y += alto + 8
 
     restante = max(0, math.ceil(partida["revision_restante"] or 0))
-    instruccion = "Enter o clic para continuar · avance automático en %d s" % restante
+    instruccion = "Enter o clic para continuar · análisis cierra en %d s" % restante
     pantalla.blit(fuente_mini.render(instruccion, True, SUAVE), (78, 644))
 
 
-def aplicar_opcion(partida, opcion, indice):
+def aplicar_opcion(partida, opcion, indice, por_tiempo=False):
     datos = partida["recursos"]
     for clave, cambio in opcion["cambios"].items():
         if clave == "errores":
@@ -458,6 +487,7 @@ def aplicar_opcion(partida, opcion, indice):
     partida["mensaje"] = opcion["resultado"]
     partida["indice_elegido"] = indice
     partida["revision_restante"] = ESPERA_REVISION
+    partida["tiempo_agotado"] = por_tiempo
     partida["fallo_pendiente"] = any(
         datos[clave] <= 0 for clave in ("oxigeno", "energia", "integridad", "moral")
     )
@@ -514,7 +544,7 @@ def dibujar_menu(mouse, botones, tiempo):
     panel(pygame.Rect(76, 345, 460, 92), "Controles")
     dibujar_texto(
         pantalla,
-        "Haz clic en una opción o usa las teclas 1–4. En el informe final, pulsa R para volver a jugar.",
+        "Decide con clic o 1–4. Tienes 35 s por misión; esperar consume energía y oxígeno, y acumula CO₂.",
         fuente_pequena,
         BLANCO,
         94,
@@ -541,6 +571,11 @@ def dibujar_mision(partida, mouse, botones):
     pantalla.blit(fase, (45, 50))
     estado = fuente_pequena.render("MISIÓN %d / %d" % (numero + 1, len(MISIONES)), True, SUAVE)
     pantalla.blit(estado, (ANCHO - estado.get_width() - 45, 31))
+    segundos = max(0, math.ceil(partida["tiempo_restante"]))
+    reloj_texto = "%02d:%02d" % (segundos // 60, segundos % 60)
+    reloj_color = ROJO if segundos <= 10 else NARANJA
+    reloj_imagen = fuente_mini.render("TIEMPO " + reloj_texto, True, reloj_color)
+    pantalla.blit(reloj_imagen, (ANCHO - reloj_imagen.get_width() - 45, 54))
     pygame.draw.rect(pantalla, (23, 42, 66), (0, 80, ANCHO, 3))
     ancho_progreso = int((numero / len(MISIONES)) * ANCHO)
     pygame.draw.rect(pantalla, NARANJA, (0, 80, ancho_progreso, 3))
@@ -655,6 +690,7 @@ def main():
         dt = reloj.tick(FPS) / 1000.0
         tiempo += dt
         actualizar_revision(partida, dt)
+        actualizar_reloj_mision(partida, dt)
         mouse = pygame.mouse.get_pos()
         dibujar_fondo(tiempo, estrellas)
 
