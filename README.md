@@ -9,3 +9,6 @@ ola bella dama *se sonroja* ¿qué haces? es un honor para mi estar de equipo co
 mi dúo dinámico mi chukirumi?
 
 ola eto *mueve la colita * s-si quiero sempai UwU
+
+
+oye ola, te quiero mucho mucho mucho jeje <3
