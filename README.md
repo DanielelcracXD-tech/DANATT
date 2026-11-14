@@ -28,3 +28,6 @@ ola eres muy bonita jeje, te quiero muchísimo
 
 
 oye m justas jeje
+
+
+oye jejejejejjejejje tú a mi jejejeje, mucho mucho
