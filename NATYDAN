@@ -12,10 +12,45 @@ pygame.init()
 ANCHO = 1280
 ALTO = 720
 
-pantalla = pygame.display.set_mode((ANCHO, ALTO))
+pantalla_completa = True
+ventana = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+pantalla = pygame.Surface((ANCHO, ALTO))
 pygame.display.set_caption("Apollo 13")
 
 clock = pygame.time.Clock()
+
+
+def cambiar_modo_pantalla():
+    global ventana, pantalla_completa
+    pantalla_completa = not pantalla_completa
+    if pantalla_completa:
+        ventana = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    else:
+        ventana = pygame.display.set_mode((ANCHO, ALTO), pygame.RESIZABLE)
+
+
+def convertir_mouse(posicion):
+    ancho_ventana, alto_ventana = ventana.get_size()
+    escala = min(ancho_ventana / ANCHO, alto_ventana / ALTO)
+    ancho_vista = round(ANCHO * escala)
+    alto_vista = round(ALTO * escala)
+    origen_x = (ancho_ventana - ancho_vista) // 2
+    origen_y = (alto_ventana - alto_vista) // 2
+    x = round((posicion[0] - origen_x) / escala)
+    y = round((posicion[1] - origen_y) / escala)
+    return x, y
+
+
+def presentar_pantalla():
+    ancho_ventana, alto_ventana = ventana.get_size()
+    escala = min(ancho_ventana / ANCHO, alto_ventana / ALTO)
+    ancho_vista = max(1, round(ANCHO * escala))
+    alto_vista = max(1, round(ALTO * escala))
+    vista = pygame.transform.smoothscale(pantalla, (ancho_vista, alto_vista))
+    ventana.fill((0, 0, 0))
+    ventana.blit(vista, ((ancho_ventana - ancho_vista) // 2,
+                         (alto_ventana - alto_vista) // 2))
+    pygame.display.flip()
 
 # ====================
 # COLORES
@@ -317,6 +352,21 @@ def crear_jugadores(total):
         jugadores.append(Jugador(x, y, colores[i], roles[i]))
 
 
+def obtener_responsable(objetivo):
+    especialista = next(
+        (jugador for jugador in jugadores if jugador.nombre == objetivo["rol"]),
+        None
+    )
+    if especialista:
+        return especialista, False
+
+    director = next(
+        (jugador for jugador in jugadores if jugador.nombre == "Director"),
+        None
+    )
+    return director, director is not None
+
+
 def dibujar_nave(tiempo, mouse):
     pygame.draw.rect(pantalla, (8, 17, 32), MAPA, border_radius=22)
     pygame.draw.rect(pantalla, BORDE, MAPA, 2, border_radius=22)
@@ -370,6 +420,10 @@ def dibujar_nave(tiempo, mouse):
 def mostrar_mision():
     if mision_actual < len(misiones):
         objetivo = misiones[mision_actual]
+        responsable, es_relevo = obtener_responsable(objetivo)
+        nombre_responsable = responsable.nombre if responsable else objetivo["rol"]
+        if es_relevo:
+            nombre_responsable += " (RELEVO)"
         pygame.draw.rect(pantalla, PANEL, (32, 90, 1216, 112), border_radius=16)
         pygame.draw.rect(pantalla, BORDE, (32, 90, 1216, 112), 1, border_radius=16)
         pygame.draw.rect(pantalla, AMARILLO, (32, 90, 5, 112), border_radius=3)
@@ -379,7 +433,7 @@ def mostrar_mision():
             True, AMARILLO), (56, 108))
         pantalla.blit(fuente_mediana.render(objetivo["texto"], True, BLANCO), (56, 132))
         indicacion = "RESPONSABLE: %s     •     SECTOR: %s" % (
-            objetivo["rol"].upper(), objetivo["sala"])
+            nombre_responsable.upper(), objetivo["sala"])
         pantalla.blit(fuente.render(indicacion, True, SUAVE), (56, 169))
 
 
@@ -414,7 +468,7 @@ def dibujar_tripulacion():
     pygame.draw.line(pantalla, BORDE, (938, 565), (1224, 565), 1)
     pantalla.blit(fuente_mini.render("MOVERSE: teclas indicadas", True, SUAVE), (938, 580))
     pantalla.blit(fuente_mini.render("EN EL SECTOR: pulsa E", True, AMARILLO), (938, 603))
-    pantalla.blit(fuente_mini.render("Solo el responsable puede actuar.", True, SUAVE), (938, 626))
+    pantalla.blit(fuente_mini.render("Director cubre puestos sin especialista.", True, SUAVE), (938, 626))
 
 
 def dibujar_menu(mouse, tiempo):
@@ -461,8 +515,11 @@ def dibujar_menu(mouse, tiempo):
         pantalla.blit(fuente_mini.render("SELECCIONAR", True, SUAVE),
                       (boton.right - 111, boton.y + 18))
 
+    pantalla.blit(fuente_mini.render("Si falta un especialista, el Director toma el relevo.",
+                                     True, SUAVE), (76, 593))
     pantalla.blit(fuente_mini.render("WASD / FLECHAS / IJKL / TFGH   •   INTERACTUAR: E",
-                                     True, SUAVE), (76, 630))
+                                     True, SUAVE), (76, 615))
+    pantalla.blit(fuente_mini.render("F11: alternar pantalla completa", True, SUAVE), (76, 638))
 
 
 def dibujar_final():
@@ -486,7 +543,7 @@ def dibujar_final():
 while True:
     dt = clock.tick(60)/1000
     tiempo = pygame.time.get_ticks() / 1000
-    mouse = pygame.mouse.get_pos()
+    mouse = convertir_mouse(pygame.mouse.get_pos())
 
     for evento in pygame.event.get():
         if evento.type == pygame.QUIT:
@@ -494,14 +551,17 @@ while True:
             sys.exit()
 
         if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1 and estado == "menu":
+            posicion_mouse = convertir_mouse(evento.pos)
             for indice, boton in enumerate(botones_menu):
-                if boton.collidepoint(evento.pos):
+                if boton.collidepoint(posicion_mouse):
                     crear_jugadores(indice + 1)
                     estado = "juego"
                     break
 
         if evento.type == pygame.KEYDOWN:
-            if estado == "menu" and pygame.K_1 <= evento.key <= pygame.K_4:
+            if evento.key == pygame.K_F11:
+                cambiar_modo_pantalla()
+            elif estado == "menu" and pygame.K_1 <= evento.key <= pygame.K_4:
                 crear_jugadores(evento.key - pygame.K_0)
                 estado = "juego"
             elif estado == "juego" and evento.key == pygame.K_ESCAPE:
@@ -509,11 +569,10 @@ while True:
                 jugadores.clear()
             elif estado == "juego" and evento.key == pygame.K_e and mision_actual < len(misiones):
                 objetivo = misiones[mision_actual]
-                for jugador in jugadores:
-                    if (jugador.nombre == objetivo["rol"]
-                            and jugador.rect.colliderect(salas[objetivo["sala"]])):
-                        mision_actual += 1
-                        break
+                responsable, _ = obtener_responsable(objetivo)
+                if (responsable
+                        and responsable.rect.colliderect(salas[objetivo["sala"]])):
+                    mision_actual += 1
                 if mision_actual >= len(misiones):
                     estado = "final"
             elif estado == "final" and evento.key in (pygame.K_RETURN, pygame.K_r):
@@ -537,7 +596,7 @@ while True:
         if mision_actual < len(misiones):
             objetivo = misiones[mision_actual]
             sala_objetivo = salas[objetivo["sala"]]
-            responsable = next((j for j in jugadores if j.nombre == objetivo["rol"]), None)
+            responsable, _ = obtener_responsable(objetivo)
             if responsable and responsable.rect.colliderect(sala_objetivo):
                 aviso = fuente_mediana.render("E  ·  COMPLETAR OBJETIVO", True, (10, 25, 38))
                 placa = aviso.get_rect(center=(sala_objetivo.centerx, sala_objetivo.bottom + 27))
@@ -546,4 +605,4 @@ while True:
     elif estado == "final":
         dibujar_final()
 
-    pygame.display.flip()
+    presentar_pantalla()
