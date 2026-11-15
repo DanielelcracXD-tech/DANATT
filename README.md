@@ -42,3 +42,5 @@ oye sí jeje, yo te quiero muchísimo más
 oye gracias jeje lo distes todo
 
 oyesí, me pasé de koketo jeje
+
+ola, te extraño muchísimo :(
