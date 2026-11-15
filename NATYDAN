@@ -13,8 +13,11 @@ respuesta incorrecta lo castiga. Además, ocurren incidentes aleatorios como en
 el vuelo real. Si cualquiera llega a cero, la misión fracasa.
 """
 import math
+import json
 import random
 import sys
+from datetime import datetime
+from pathlib import Path
 import pygame
 
 pygame.init()
@@ -37,6 +40,11 @@ DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": 0.29}   # % por segundo
 RECUPERA = 22.0        # % que recupera cada misión completada
 PENAL = 6.0            # % que se pierde por cada respuesta incorrecta
 EVENTO_MIN, EVENTO_MAX = 28.0, 50.0   # segundos entre incidentes aleatorios
+OBJETIVO_URGENCIA = 60.0
+PUNTOS_BASE_MISION = 1000
+PUNTOS_BONO_SEGUNDO = 10
+MAX_PUNTUACIONES = 5
+ARCHIVO_PUNTUACIONES = Path(__file__).resolve().with_name("puntuaciones_apollo13.json")
 
 sacudida = 0.0
 flash_rojo = 0.0
@@ -675,6 +683,11 @@ causa_fallo = "energia"
 recursos = {"energia": 100.0, "oxigeno": 100.0, "co2": 100.0}
 recursos_vis = dict(recursos)
 tiempo_juego = 0.0
+puntuacion = 0
+alarma_urgencia = False
+puesto_puntuacion = None
+puntuaciones = []
+error_puntuaciones = None
 proximo_evento = 30.0
 t_mision = 0.0
 met_vis = misiones[0]["met"]
@@ -705,6 +718,75 @@ ESTRELLAS = [(random.randrange(ANCHO), random.randrange(ALTO), random.choice((1,
 METEOROS = [(random.randrange(100, 900), random.randrange(60, 300)) for _ in range(4)]
 
 
+def fmt_puntos(valor):
+    return f"{int(valor):,}".replace(",", ".")
+
+
+def cargar_puntuaciones():
+    global error_puntuaciones
+    try:
+        datos = json.loads(ARCHIVO_PUNTUACIONES.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        error_puntuaciones = "No se pudo leer el registro de puntuaciones."
+        print(f"{error_puntuaciones} {exc}", file=sys.stderr)
+        return
+
+    campos = ("puntos", "misiones", "tripulantes", "tiempo", "victoria", "fecha")
+    if not isinstance(datos, list) or any(
+        not isinstance(registro, dict)
+        or any(campo not in registro for campo in campos)
+        or type(registro["puntos"]) is not int or registro["puntos"] < 0
+        or type(registro["misiones"]) is not int or not 0 <= registro["misiones"] <= len(misiones)
+        or type(registro["tripulantes"]) is not int or not 1 <= registro["tripulantes"] <= 4
+        or type(registro["tiempo"]) is not int or registro["tiempo"] < 0
+        or type(registro["victoria"]) is not bool
+        or not isinstance(registro["fecha"], str)
+        for registro in datos
+    ):
+        error_puntuaciones = "El archivo de puntuaciones tiene un formato no válido."
+        print(error_puntuaciones, file=sys.stderr)
+        return
+
+    puntuaciones[:] = sorted(datos, key=lambda registro: (-registro["puntos"], registro["tiempo"]))[
+        :MAX_PUNTUACIONES
+    ]
+
+
+def guardar_puntuaciones():
+    global error_puntuaciones
+    temporal = ARCHIVO_PUNTUACIONES.with_name(ARCHIVO_PUNTUACIONES.name + ".tmp")
+    try:
+        temporal.write_text(json.dumps(puntuaciones, ensure_ascii=False, indent=2), encoding="utf-8")
+        temporal.replace(ARCHIVO_PUNTUACIONES)
+    except OSError as exc:
+        error_puntuaciones = "No se pudo guardar el registro de puntuaciones."
+        print(f"{error_puntuaciones} {exc}", file=sys.stderr)
+    else:
+        error_puntuaciones = None
+
+
+def registrar_puntuacion(victoria):
+    registro = {
+        "puntos": puntuacion,
+        "misiones": mision_actual,
+        "tripulantes": len(jugadores),
+        "tiempo": int(tiempo_juego),
+        "victoria": victoria,
+        "fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    }
+    puntuaciones.append(registro)
+    puntuaciones.sort(key=lambda entrada: (-entrada["puntos"], entrada["tiempo"]))
+    del puntuaciones[MAX_PUNTUACIONES:]
+    posicion = next((i + 1 for i, entrada in enumerate(puntuaciones) if entrada is registro), None)
+    guardar_puntuaciones()
+    return posicion
+
+
+cargar_puntuaciones()
+
+
 def asignar_misiones(total):
     """Cada jugador recibe exactamente len(misiones)/total misiones."""
     presentes = roles[:total]
@@ -727,6 +809,7 @@ def asignar_misiones(total):
 
 def crear_jugadores(total):
     global mision_actual, asignacion, formulario, t_mision, met_vis, proximo_evento, tiempo_juego
+    global puntuacion, alarma_urgencia, puesto_puntuacion
     jugadores.clear()
     alertas.clear()
     particulas.clear()
@@ -738,6 +821,9 @@ def crear_jugadores(total):
     formulario = None
     t_mision = 0.0
     tiempo_juego = 0.0
+    puntuacion = 0
+    alarma_urgencia = False
+    puesto_puntuacion = None
     met_vis = misiones[0]["met"]
     proximo_evento = random.uniform(EVENTO_MIN, EVENTO_MAX)
     asignacion = asignar_misiones(total)
@@ -816,8 +902,13 @@ def actualizar_efectos(dt):
 
 def actualizar_recursos(dt):
     global estado, formulario, proximo_evento, t_mision, met_vis, tiempo_juego, causa_fallo
+    global alarma_urgencia, puesto_puntuacion
     tiempo_juego += dt
     t_mision += dt
+    if not alarma_urgencia and t_mision >= OBJETIVO_URGENCIA:
+        alarma_urgencia = True
+        lanzar_alerta("ALERTA: venció la ventana de respuesta. Se perdió el bono de rapidez.",
+                      ROJO_CLARO, 6.0)
     for k in recursos:
         recursos[k] = max(0.0, recursos[k] - DRENAJE[k] * dt)
         recursos_vis[k] += (recursos[k] - recursos_vis[k]) * min(1.0, dt * 6)
@@ -830,6 +921,7 @@ def actualizar_recursos(dt):
         causa_fallo = agotado
         formulario = None
         estado = "fallo"
+        puesto_puntuacion = registrar_puntuacion(False)
 
 
 # ====================
@@ -933,19 +1025,26 @@ def enviar_formulario():
 
 def finalizar_exito():
     global mision_actual, estado, formulario, t_mision, met_vis
+    global puntuacion, alarma_urgencia, puesto_puntuacion
     m = misiones[mision_actual]
     sala = salas[m["sala"]]
     rec = m["recurso"]
     recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
-    lanzar_alerta(f"Misión completada   +{int(RECUPERA)} % {RECURSOS_INFO[rec][0].lower()}", VERDE, 4.0)
+    bono = max(0, int((OBJETIVO_URGENCIA - t_mision) * PUNTOS_BONO_SEGUNDO))
+    puntos_ganados = PUNTOS_BASE_MISION + bono
+    puntuacion += puntos_ganados
+    lanzar_alerta(f"Misión completada   +{int(RECUPERA)} % {RECURSOS_INFO[rec][0].lower()}   "
+                  f"+{fmt_puntos(puntos_ganados)} pts", VERDE, 4.0)
     emitir(sala.centerx, sala.centery, COLORES_SALA[m["sala"]], 46, 280, 1.2, 3)
     mision_actual += 1
     t_mision = 0.0
+    alarma_urgencia = False
     if mision_actual < len(misiones):
         met_vis = misiones[mision_actual]["met"]
     formulario = None
     if mision_actual >= len(misiones):
         estado = "final"
+        puesto_puntuacion = registrar_puntuacion(True)
         for col in (VERDE, AMARILLO, AZUL, BLANCO):
             emitir(ANCHO // 2, 300, col, 40, 420, 1.8, 3, 200)
         return
@@ -1270,9 +1369,11 @@ def dibujar_cabecera():
     texto("MET", fuente_mini_b, AMARILLO, (36, 76), sombra=False)
     texto(fmt_met(met_vis), fuente, BLANCO, (78, 70), sombra=False)
     texto(f"CML {cml_actual()}  ·  VUELO", fuente_mini_b, SUAVE, (36, 102), sombra=False)
+    texto(f"PTS {fmt_puntos(puntuacion)}", fuente_mini_b, AMARILLO, (276, 102),
+          derecha=True, sombra=False)
     for i in range(len(misiones)):
         color = VERDE if i < mision_actual else AMARILLO if i == mision_actual else BORDE
-        pygame.draw.rect(pantalla, color, (142 + i * 11, 107, 8, 3), border_radius=2)
+        pygame.draw.rect(pantalla, color, (142 + i * 11, 117, 8, 3), border_radius=2)
     dibujar_recursos()
 
 
@@ -1290,6 +1391,19 @@ def mostrar_mision():
     met_txt = ("≈ " if m["aprox"] else "") + fmt_met(m["met"])
     texto(f"MISIÓN {mision_actual + 1:02d}/{len(misiones):02d}  ·  MET {met_txt}",
           fuente_mini_b, AMARILLO, (tarjeta.x + 26, tarjeta.y + 10), sombra=False)
+    restante = OBJETIVO_URGENCIA - t_mision
+    if restante > 0:
+        segundos = math.ceil(restante)
+        etiqueta_urgencia = f"OBJETIVO {segundos // 60:02d}:{segundos % 60:02d}"
+        color_urgencia = ROJO_CLARO if restante <= 10 and int(tiempo_juego * 4) % 2 else (
+            AMARILLO if restante <= 15 else AZUL
+        )
+    else:
+        sobretiempo = int(t_mision - OBJETIVO_URGENCIA)
+        etiqueta_urgencia = f"ALERTA +{sobretiempo:02d}s"
+        color_urgencia = ROJO_CLARO if int(tiempo_juego * 4) % 2 else ROJO
+    texto(etiqueta_urgencia, fuente_mini_b, color_urgencia,
+          (tarjeta.right - 14, tarjeta.y + 10), derecha=True, sombra=False)
     texto(m["titulo"], fuente, BLANCO, (tarjeta.x + 26, tarjeta.y + 29), sombra=False)
     relato = partir_texto(m["relato"], fuente_mini, 432)
     for i, linea in enumerate(relato[:3]):
@@ -1597,15 +1711,18 @@ def dibujar_menu(mouse, tiempo):
     panel_estado = pygame.Rect(780, 68, 428, 174)
     pygame.draw.rect(pantalla, (8, 18, 35), panel_estado, border_radius=16)
     pygame.draw.rect(pantalla, BORDE, panel_estado, 1, border_radius=16)
-    texto("ESTADO DE VUELO", fuente_mini_b, SUAVE, (804, 88), sombra=False)
-    texto("REGRESO EN CURSO", fuente, BLANCO, (804, 111))
-    texto("SISTEMAS EN VIGILANCIA", fuente_mini, APAGADO, (804, 143), sombra=False)
-    pygame.draw.line(pantalla, LINEA, (804, 176), (1182, 176), 1)
-    for i in range(3):
-        x = 806 + i * 126
-        pygame.draw.rect(pantalla, (19, 34, 54), (x, 193, 110, 5), border_radius=2)
-        pygame.draw.rect(pantalla, (VERDE, AZUL, AMARILLO)[i], (x, 193, 74 + int(5 * math.sin(tiempo + i)), 5),
-                         border_radius=2)
+    texto("MEJORES RESULTADOS", fuente_mini_b, SUAVE, (804, 88), sombra=False)
+    if puntuaciones:
+        for i, registro in enumerate(puntuaciones[:MAX_PUNTUACIONES]):
+            y = 110 + i * 21
+            color_record = AMARILLO if i == 0 else BLANCO
+            texto(f"{i + 1:02d}  {fmt_puntos(registro['puntos'])} PTS  ·  {registro['tripulantes']} trip.",
+                  fuente_mini_b, color_record, (804, y), sombra=False)
+    else:
+        texto("Completa una misión para fijar el primer récord.",
+              fuente_mini, APAGADO, (804, 117), sombra=False)
+    if error_puntuaciones:
+        texto("REGISTRO NO DISPONIBLE", fuente_mini_b, ROJO_CLARO, (804, 222), sombra=False)
     orbit_y = 150 + int(math.sin(tiempo * 0.7) * 3)
     pygame.draw.ellipse(pantalla, (42, 77, 111), (1012, 80, 160, 94), 1)
     pygame.draw.circle(pantalla, (202, 211, 221), (1155, orbit_y - 23), 25)
@@ -1662,8 +1779,8 @@ def dibujar_menu(mouse, tiempo):
                              (boton.right - 28, boton.centery + 5)])
 
     pygame.draw.line(pantalla, LINEA, (72, 628), (1208, 628), 1)
-    texto("DINÁMICA", fuente_mini_b, AMARILLO, (72, 648), sombra=False)
-    texto("Cada misión recupera 22 % del recurso asignado; cada error resta 6 %.", fuente_mini, SUAVE,
+    texto("URGENCIA", fuente_mini_b, AMARILLO, (72, 648), sombra=False)
+    texto("Cada misión da hasta 600 puntos extra si se completa antes de 60 s.", fuente_mini, SUAVE,
           (166, 648), sombra=False)
     texto("1-4: elegir tripulación   ·   F11: pantalla completa", fuente_mini, APAGADO,
           (1208, 684), derecha=True, sombra=False)
@@ -1680,7 +1797,8 @@ def dibujar_resultado(tiempo, exito):
               (640, 392), centro=True)
         texto("«Resolvamos el problema, pero no lo empeore con conjeturas.»  —  Gene Kranz", fuente_mini,
               APAGADO, (640, 428), centro=True, sombra=False)
-        texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 484), centro=True)
+        texto(f"PUNTUACIÓN  {fmt_puntos(puntuacion)} PTS", fuente, AMARILLO, (640, 466), centro=True)
+        texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 510), centro=True)
     else:
         texto("MISIÓN FALLIDA", titulo, ROJO, (640, 280), centro=True)
         texto(CAUSA_FALLO[causa_fallo], fuente, BLANCO, (640, 346), centro=True)
@@ -1688,7 +1806,15 @@ def dibujar_resultado(tiempo, exito):
               SUAVE, (640, 384), centro=True, sombra=False)
         texto("«Mantengamos la calma.»  —  Gene Kranz", fuente_mini, APAGADO, (640, 420), centro=True,
               sombra=False)
-        texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 470), centro=True)
+        texto(f"PUNTUACIÓN  {fmt_puntos(puntuacion)} PTS", fuente, AMARILLO, (640, 454), centro=True)
+        texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 492), centro=True)
+
+    if error_puntuaciones:
+        texto("No se pudo guardar el registro de puntuaciones.",
+              fuente_mini, ROJO_CLARO, (640, 487 if exito else 475), centro=True, sombra=False)
+    elif puesto_puntuacion:
+        texto(f"RÉCORD GUARDADO  ·  PUESTO #{puesto_puntuacion}",
+              fuente_mini_b, VERDE, (640, 487 if exito else 475), centro=True, sombra=False)
 
 
 def dibujar_pausa(mouse, tiempo):
