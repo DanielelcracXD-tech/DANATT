@@ -1,0 +1,34 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Diseño de misión</title><link rel="stylesheet" href="style.css"></head>
+<body><div class="stars"></div><main class="wrap">
+<header class="panel center"><h1>Fase 1 · Diseño de misión</h1><p id="playerLabel"></p><h2 id="designTitle"></h2></header>
+<form id="designForm">
+<section class="panel"><h3>Director · objetivo y presupuesto</h3>
+<label for="scenarioSelect">Escenario</label><select id="scenarioSelect"><option value="apollo">Apolo 13 · Crisis</option><option value="lunar">Órbita lunar · Cartografía</option><option value="earth">Observación terrestre · Clima</option></select>
+<label for="objectiveSelect">Objetivo de misión</label><select id="objectiveSelect"></select>
+<label for="budgetLevel">Presupuesto aprobado</label><select id="budgetLevel"><option value=".8">Austero · 80%</option><option value="1" selected>Estándar · 100%</option><option value="1.2">Ampliado · 120%</option></select>
+</section>
+<section class="panel"><h3>Ingeniería · nave y energía</h3>
+<label for="dhull">Nave / plataforma</label><select id="dhull"></select>
+<label for="dbattery">Baterías</label><select id="dbattery"></select>
+<label for="dsolar">Paneles solares</label><select id="dsolar"></select>
+</section>
+<section class="panel"><h3>Navegación · lanzador y órbita</h3>
+<label for="dlauncher">Lanzador (la capacidad se verifica en vivo)</label><select id="dlauncher"></select>
+<label for="dorbit">Órbita objetivo</label><select id="dorbit"></select>
+<p>La capacidad del lanzador debe cubrir la masa total y cumplir el mínimo requerido por la órbita.</p>
+</section>
+<section class="panel"><h3>Soporte vital y comunicaciones · ciencia y enlace</h3>
+<label for="dinstruments">Instrumentos</label><select id="dinstruments"></select>
+<label for="dantenna">Antena</label><select id="dantenna"></select>
+</section>
+<section class="panel negotiation"><h3>Negociación del equipo · presupuesto compartido</h3>
+<p>Ingeniería/Navegación y Soporte/Ciencia comparten el presupuesto. Muevan el crédito entre prioridades; el presupuesto total no cambia y una transferencia excesiva puede invalidar un rol.</p>
+<label for="transferBudget">Transferencia a Soporte/Ciencia (créditos; negativo = a Ingeniería/Navegación)</label>
+<input id="transferBudget" type="range" min="-250" max="250" step="25" value="0">
+</section>
+<section class="panel"><h3>Balance de misión · actualización en vivo</h3>
+<div class="design-bars" id="designBars"></div><p id="designNote"></p>
+<ul id="validation" class="validation"></ul>
+<button id="startDesign" class="btn go" type="button" disabled>Confirmar diseño y pasar a simulación</button>
+</section></form>
+</main><script src="Misiones.js"></script><script src="Game.js"></script><script>pagDiseno()</script></body></html>
