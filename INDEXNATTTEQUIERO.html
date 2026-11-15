@@ -1,0 +1,12 @@
+<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Diseña tu misión espacial</title><link rel="stylesheet" href="style.css"></head>
+<body><div class="stars"></div><div class="wrap" style="max-width:640px">
+<div class="panel center"><h1 style="font-size:2.4rem">DISEÑA TU MISIÓN</h1><h3 style="color:var(--or)">Del plano a la operación</h3>
+<p>Diseña una nave en equipo, valida sus recursos y opera la misión. Cada decisión de ingeniería, navegación y ciencia cambia las probabilidades de cumplir el objetivo.</p></div>
+<div class="panel"><h3>¿Cuántos jugadores?</h3>
+<p style="font-size:.9rem">Roles: Dirección, Ingeniería, Navegación y Soporte vital/Comunicaciones. Con menos de cuatro jugadores, los roles se rotan.</p>
+<div class="pl"><button onclick="go(1)">1</button><button onclick="go(2)">2</button><button onclick="go(3)">3</button><button onclick="go(4)">4</button></div>
+<div id="cont"></div></div></div>
+<script src="Misiones.js"></script><script src="Game.js"></script><script>
+function go(n){S=fresh(n);save();location='Diseno.html'}
+if(S&&!S.fin&&S.t<1200)$('#cont').innerHTML='<a class="btn go" href="Mision.html?m='+S.m+'">Continuar operación ('+((SCENARIOS[S.scenario]||SCENARIOS.apollo).name)+')</a>';
+</script></body></html>
