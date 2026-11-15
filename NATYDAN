@@ -6,9 +6,9 @@ problema" (J. Uri) y las preguntas mezclan hechos de esa historia con los nivele
 madurez de concepto (CML) de Wessen et al. (JPL, 2013).
 
 Dinámica: tres consumibles (energía, oxígeno y depuración de CO2) se agotan
-sin parar. Cada formulario resuelto recupera el consumible de su misión; cada
-error lo castiga. Además, ocurren incidentes aleatorios como en el vuelo real.
-Si cualquiera llega a cero, la misión fracasa.
+sin parar. Cada misión completada recupera el consumible correspondiente; cada
+respuesta incorrecta lo castiga. Además, ocurren incidentes aleatorios como en
+el vuelo real. Si cualquiera llega a cero, la misión fracasa.
 """
 import math
 import random
@@ -32,8 +32,8 @@ clock = pygame.time.Clock()
 
 # --- Ajustes de dificultad (puedes tocarlos) ---
 DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": 0.29}   # % por segundo
-RECUPERA = 22.0        # % que recupera un formulario correcto
-PENAL = 6.0            # % que se pierde por un envío con errores
+RECUPERA = 22.0        # % que recupera cada misión completada
+PENAL = 6.0            # % que se pierde por cada respuesta incorrecta
 EVENTO_MIN, EVENTO_MAX = 28.0, 50.0   # segundos entre incidentes aleatorios
 
 sacudida = 0.0
@@ -664,7 +664,7 @@ controles = [
 ]
 TECLAS_TEXTO = ["WASD", "FLECHAS", "IJKL", "TFGH"]
 
-botones_menu = [pygame.Rect(74, 300 + i * 70, 420, 56) for i in range(4)]
+botones_menu = [pygame.Rect(72 + (i % 2) * 274, 348 + (i // 2) * 112, 256, 96) for i in range(4)]
 
 ESTRELLAS = [(random.randrange(ANCHO), random.randrange(ALTO), random.choice((1, 1, 2)),
               random.random() * math.tau) for _ in range(120)]
@@ -863,16 +863,16 @@ def enviar_formulario():
             errores += 1
     rec = m["recurso"]
     if errores:
-        recursos[rec] = max(0.0, recursos[rec] - PENAL)
+        perdida = errores * PENAL
+        recursos[rec] = max(0.0, recursos[rec] - perdida)
         f["foco"] = next(i for i, c in enumerate(campos) if c["error"])
-        f["mensaje"] = f"{errores} campo(s) incorrecto(s)   -{int(PENAL)} % {RECURSOS_INFO[rec][0].lower()}"
+        f["mensaje"] = (f"{errores} campo(s) incorrecto(s)   -{int(perdida)} % "
+                        f"{RECURSOS_INFO[rec][0].lower()}")
         f["color"] = ROJO_CLARO
         f["shake"] = 0.55
         sacudida = 0.25
         return
-    recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
     f["exito"] = 0.0
-    lanzar_alerta(f"Formulario aceptado   +{int(RECUPERA)} % {RECURSOS_INFO[rec][0].lower()}", VERDE, 4.0)
     for col in (VERDE, AMARILLO, BLANCO, COLORES_SALA[m["sala"]]):
         emitir(ANCHO // 2, ALTO // 2 - 40, col, 22, 330, 1.3, 3, 260)
 
@@ -881,6 +881,9 @@ def finalizar_exito():
     global mision_actual, estado, formulario, t_mision
     m = misiones[mision_actual]
     sala = salas[m["sala"]]
+    rec = m["recurso"]
+    recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
+    lanzar_alerta(f"Misión completada   +{int(RECUPERA)} % {RECURSOS_INFO[rec][0].lower()}", VERDE, 4.0)
     emitir(sala.centerx, sala.centery, COLORES_SALA[m["sala"]], 46, 280, 1.2, 3)
     mision_actual += 1
     t_mision = 0.0
@@ -1323,7 +1326,7 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
                 pygame.draw.line(pantalla, VERDE, a, b, 6)
                 pygame.draw.line(pantalla, VERDE, b, (b[0] + (c3[0] - b[0]) * e, b[1] + (c3[1] - b[1]) * e), 6)
         q3 = suave((p - 0.8) / 0.4)
-        texto("FORMULARIO ACEPTADO", fuente_grande, mezclar(PANEL_BG, VERDE, q3), (cx, cy + 100), centro=True,
+        texto("MISIÓN COMPLETADA", fuente_grande, mezclar(PANEL_BG, VERDE, q3), (cx, cy + 100), centro=True,
               sombra=False)
         texto(f"+{int(RECUPERA)} % {nombre_rec}", fuente, mezclar(PANEL_BG, col_rec, q3), (cx, cy + 142),
               centro=True, sombra=False)
@@ -1335,37 +1338,94 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
 
 def dibujar_menu(mouse, tiempo):
     dibujar_fondo(tiempo)
-    pygame.draw.circle(pantalla, (10, 24, 48), (1150, 700), 330)
-    pygame.draw.circle(pantalla, (30, 62, 104), (1150, 700), 330, 2)
-    pygame.draw.circle(pantalla, (200, 205, 215), (930, 150 + int(math.sin(tiempo) * 4)), 22)
-    pygame.draw.circle(pantalla, FONDO, (938, 144 + int(math.sin(tiempo) * 4)), 20)
+    pygame.draw.rect(pantalla, (7, 14, 27), (0, 0, ANCHO, 48))
+    pygame.draw.line(pantalla, LINEA, (0, 47), (ANCHO, 47), 1)
+    texto("APOLLO PROGRAM", fuente_mini_b, AMARILLO, (72, 17), sombra=False)
+    texto("CENTRO DE CONTROL  /  HOUSTON", fuente_mini, APAGADO, (230, 18), sombra=False)
+    pygame.draw.circle(pantalla, ROJO_CLARO if int(tiempo * 2) % 2 else ROJO, (1026, 24), 4)
+    texto("SEÑAL DE EMERGENCIA", fuente_mini_b, SUAVE, (1040, 17), sombra=False)
 
-    texto("APOLLO 13", titulo, BLANCO, (68, 80))
-    texto("MISIÓN: REGRESO A CASA", fuente_mediana, AMARILLO, (74, 160))
-    texto("Revive la crisis: mantén energía, oxígeno y CO2 bajo control y resuelve cada formulario a tiempo.",
-          fuente, SUAVE, (74, 212))
-    texto("Preguntas aleatorias sobre el vuelo real y la madurez del concepto de misión.", fuente, APAGADO,
-          (74, 238))
+    texto("APOLLO 13", titulo, BLANCO, (68, 76))
+    pygame.draw.rect(pantalla, AMARILLO, (74, 151, 42, 3), border_radius=2)
+    texto("MISIÓN: REGRESO A CASA", fuente_mediana, AMARILLO, (74, 165))
+    texto("Una tripulación. Tres consumibles. Una ruta de regreso.", fuente, SUAVE, (74, 207))
+    texto("Resuelve los desafíos de vuelo y ayuda a Houston a traerlos de vuelta.", fuente_o, APAGADO,
+          (74, 235), sombra=False)
 
+    # Ilustración orbital y panel de estado de la misión.
+    panel_estado = pygame.Rect(780, 68, 428, 174)
+    pygame.draw.rect(pantalla, (8, 18, 35), panel_estado, border_radius=16)
+    pygame.draw.rect(pantalla, BORDE, panel_estado, 1, border_radius=16)
+    texto("ESTADO DE VUELO", fuente_mini_b, SUAVE, (804, 88), sombra=False)
+    texto("REGRESO EN CURSO", fuente, BLANCO, (804, 111))
+    texto("SISTEMAS EN VIGILANCIA", fuente_mini, APAGADO, (804, 143), sombra=False)
+    pygame.draw.line(pantalla, LINEA, (804, 176), (1182, 176), 1)
+    for i in range(3):
+        x = 806 + i * 126
+        pygame.draw.rect(pantalla, (19, 34, 54), (x, 193, 110, 5), border_radius=2)
+        pygame.draw.rect(pantalla, (VERDE, AZUL, AMARILLO)[i], (x, 193, 74 + int(5 * math.sin(tiempo + i)), 5),
+                         border_radius=2)
+    orbit_y = 150 + int(math.sin(tiempo * 0.7) * 3)
+    pygame.draw.ellipse(pantalla, (42, 77, 111), (1012, 80, 160, 94), 1)
+    pygame.draw.circle(pantalla, (202, 211, 221), (1155, orbit_y - 23), 25)
+    pygame.draw.circle(pantalla, (144, 158, 177), (1147, orbit_y - 30), 7)
+    pygame.draw.circle(pantalla, (168, 180, 195), (1162, orbit_y - 16), 5)
+    nave_x = 1040 + int(math.sin(tiempo * 0.5) * 8)
+    nave_y = orbit_y + 10
+    pygame.draw.circle(pantalla, AZUL, (nave_x, nave_y), 7)
+    pygame.draw.circle(pantalla, BLANCO, (nave_x, nave_y), 3)
+    pygame.draw.line(pantalla, AZUL, (nave_x - 8, nave_y + 10), (nave_x - 19, nave_y + 20), 2)
+
+    # Configuración de la tripulación.
+    panel_tripulacion = pygame.Rect(640, 276, 568, 332)
+    pygame.draw.rect(pantalla, (8, 18, 35), panel_tripulacion, border_radius=16)
+    pygame.draw.rect(pantalla, BORDE, panel_tripulacion, 1, border_radius=16)
+    texto("ESPECIALISTAS DE VUELO", fuente_mini_b, AMARILLO, (670, 298), sombra=False)
+    texto("Cada rol aporta al rescate", fuente_mini, APAGADO, (670, 320), sombra=False)
+    descripciones = [
+        ("Director", "ciencia, costo y coordinación"),
+        ("Ingeniero", "energía, buses y baterías"),
+        ("Navegación", "trayectoria y encendidos"),
+        ("Soporte Vital", "oxígeno, CO2 y riesgos"),
+    ]
+    for i, (rol, descripcion) in enumerate(descripciones):
+        y = 356 + i * 54
+        pygame.draw.line(pantalla, LINEA, (670, y + 42), (1178, y + 42), 1)
+        pygame.draw.circle(pantalla, colores[i], (682, y + 13), 5)
+        texto(rol, fuente, BLANCO, (700, y), sombra=False)
+        texto(descripcion, fuente_mini, APAGADO, (700, y + 22), sombra=False)
+        tecla = pygame.Rect(1080, y + 1, 96, 27)
+        pygame.draw.rect(pantalla, (15, 29, 48), tecla, border_radius=7)
+        pygame.draw.rect(pantalla, mezclar(BORDE, colores[i], 0.35), tecla, 1, border_radius=7)
+        texto(TECLAS_TEXTO[i], fuente_mini_b, SUAVE, tecla.center, centro=True, sombra=False)
+
+    # Selección de jugadores: las mismas zonas se usan para clic y teclas 1-4.
+    texto("CONFIGURA TU TRIPULACIÓN", fuente_mini_b, AMARILLO, (72, 286), sombra=False)
+    texto("Selecciona el número de jugadores", fuente_mini, APAGADO, (72, 310), sombra=False)
     for i, boton in enumerate(botones_menu):
         hover = boton.collidepoint(mouse)
-        if hover:
-            pygame.draw.line(pantalla, AMARILLO, (boton.x - 14, boton.y + 6), (boton.x - 14, boton.bottom - 6), 3)
-        texto(str(i + 1), fuente_mediana, AMARILLO if hover else APAGADO, (boton.x, boton.y + 6))
-        texto(f"{i + 1} tripulante{'s' if i else ''}", fuente_mediana, BLANCO if hover else SUAVE,
-              (boton.x + 40, boton.y + 6))
+        acento = AMARILLO if hover else BORDE
+        relleno = mezclar((8, 18, 35), AMARILLO, 0.09 if hover else 0.0)
+        pygame.draw.rect(pantalla, relleno, boton, border_radius=14)
+        pygame.draw.rect(pantalla, acento, boton, 2 if hover else 1, border_radius=14)
+        pygame.draw.rect(pantalla, colores[i], (boton.x + 16, boton.y + 17, 4, boton.height - 34),
+                         border_radius=2)
+        texto(f"{i + 1}", fuente_grande, AMARILLO if hover else BLANCO,
+              (boton.x + 31, boton.y + 16), sombra=False)
+        etiqueta = "TRIPULANTE" if i == 0 else "TRIPULANTES"
+        texto(etiqueta, fuente_mini_b, SUAVE, (boton.x + 77, boton.y + 20), sombra=False)
         texto(f"{len(misiones) // (i + 1)} formularios por persona", fuente_mini, APAGADO,
-              (boton.x + 42, boton.y + 36), sombra=False)
+              (boton.x + 77, boton.y + 46), sombra=False)
+        pygame.draw.polygon(pantalla, AMARILLO if hover else APAGADO,
+                            [(boton.right - 28, boton.centery - 5), (boton.right - 20, boton.centery),
+                             (boton.right - 28, boton.centery + 5)])
 
-    texto("ROLES", fuente_mini_b, AMARILLO, (600, 300), sombra=False)
-    descripciones = [("Director", "ciencia, costo y relevos de Houston"), ("Ingeniero", "energía, buses y baterías"),
-                     ("Navegación", "trayectoria y encendidos"), ("Soporte Vital", "oxígeno, CO2 y riesgos")]
-    for i, (r, d) in enumerate(descripciones):
-        pygame.draw.circle(pantalla, colores[i], (606, 335 + i * 26), 5)
-        texto(r, fuente, BLANCO, (620, 325 + i * 26), sombra=False)
-        texto(d, fuente_mini, APAGADO, (760, 329 + i * 26), sombra=False)
-    texto("WASD / FLECHAS / IJKL / TFGH   ·   E: interactuar   ·   F11: pantalla", fuente_mini, SUAVE,
-          (76, 640), sombra=False)
+    pygame.draw.line(pantalla, LINEA, (72, 628), (1208, 628), 1)
+    texto("DINÁMICA", fuente_mini_b, AMARILLO, (72, 648), sombra=False)
+    texto("Cada misión recupera 22 % del recurso asignado; cada error resta 6 %.", fuente_mini, SUAVE,
+          (166, 648), sombra=False)
+    texto("1-4: elegir tripulación   ·   F11: pantalla completa", fuente_mini, APAGADO,
+          (1208, 684), derecha=True, sombra=False)
 
 
 def dibujar_resultado(tiempo, exito):
