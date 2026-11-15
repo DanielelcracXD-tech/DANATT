@@ -664,6 +664,7 @@ misiones = [
 # ====================
 
 estado = "menu"
+tiempo_pausa = 0.0
 # El MET avanza entre eventos históricos; no representa horas de vuelo en tiempo real.
 mision_actual = 0
 asignacion = []
@@ -697,6 +698,7 @@ controles = [
 TECLAS_TEXTO = ["WASD", "FLECHAS", "IJKL", "TFGH"]
 
 botones_menu = [pygame.Rect(72 + (i % 2) * 274, 348 + (i // 2) * 112, 256, 96) for i in range(4)]
+botones_pausa = [pygame.Rect(388, 460, 504, 54), pygame.Rect(388, 528, 504, 48)]
 
 ESTRELLAS = [(random.randrange(ANCHO), random.randrange(ALTO), random.choice((1, 1, 2)),
               random.random() * math.tau) for _ in range(120)]
@@ -1327,7 +1329,7 @@ def dibujar_tripulacion():
         pygame.draw.circle(pantalla, j.color, (x + 5, 701), 4)
         texto(f"{j.nombre.upper()}  {TECLAS_TEXTO[i]}  {hechas}/{total}",
               fuente_mini, BLANCO if j.nombre == resp else SUAVE, (x + 16, 694), sombra=False)
-    texto("E  INTERACTUAR   ·   ESC  MENÚ   ·   F11  PANTALLA",
+    texto("E  INTERACTUAR   ·   ESC  PAUSA   ·   F11  PANTALLA",
           fuente_mini, APAGADO, (ANCHO - 24, 694),
           derecha=True, sombra=False)
 
@@ -1689,12 +1691,91 @@ def dibujar_resultado(tiempo, exito):
         texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 470), centro=True)
 
 
+def dibujar_pausa(mouse, tiempo):
+    velo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+    velo.fill((2, 8, 19, 190))
+    pantalla.blit(velo, (0, 0))
+
+    panel = pygame.Rect(340, 90, 600, 540)
+    rect_alpha(pantalla, (0, 0, 0), panel.move(0, 8), 105, 22)
+    rect_alpha(pantalla, (9, 20, 38), panel, 250, 22)
+    pygame.draw.rect(pantalla, (57, 91, 126), panel, 1, border_radius=22)
+    pygame.draw.line(pantalla, AZUL, (panel.x + 26, panel.y + 2), (panel.right - 26, panel.y + 2), 2)
+
+    for i in range(24):
+        x = panel.x + 22 + (i * 83) % (panel.width - 44)
+        y = panel.y + 20 + (i * 47) % 194
+        brillo = 75 + int(55 * (0.5 + 0.5 * math.sin(tiempo * 1.4 + i)))
+        pygame.draw.circle(pantalla, (brillo, min(220, brillo + 24), 255), (x, y), 1)
+
+    texto("APOLLO 13  ·  ODYSSEY", fuente_mini_b, AMARILLO, (panel.centerx, panel.y + 30),
+          centro=True, sombra=False)
+    insignia = (panel.centerx, panel.y + 105)
+    pygame.draw.circle(pantalla, (17, 39, 62), insignia, 34)
+    pygame.draw.circle(pantalla, (86, 145, 190), insignia, 34, 1)
+    pygame.draw.ellipse(pantalla, (114, 173, 211), (insignia[0] - 25, insignia[1] - 9, 50, 18), 1)
+    pygame.draw.ellipse(pantalla, (114, 173, 211), (insignia[0] - 10, insignia[1] - 29, 20, 58), 1)
+    pygame.draw.polygon(pantalla, BLANCO, [(insignia[0], insignia[1] - 18),
+                                           (insignia[0] + 7, insignia[1] + 10),
+                                           (insignia[0], insignia[1] + 6),
+                                           (insignia[0] - 7, insignia[1] + 10)])
+    pygame.draw.circle(pantalla, AMARILLO, (insignia[0], insignia[1] + 14), 3)
+
+    texto("EN PAUSA", fuente_grande, BLANCO, (panel.centerx, panel.y + 158), centro=True)
+    texto("La tripulación espera tus indicaciones, Houston.",
+          fuente_mini, SUAVE, (panel.centerx, panel.y + 188), centro=True, sombra=False)
+    pygame.draw.line(pantalla, (40, 65, 91), (panel.x + 34, panel.y + 218),
+                     (panel.right - 34, panel.y + 218), 1)
+
+    datos = (("TIEMPO DE VUELO", fmt_met(met_vis)),
+             ("MISIÓN ACTUAL", f"{min(mision_actual + 1, len(misiones)):02d} / {len(misiones):02d}"))
+    for i, (etiqueta, valor) in enumerate(datos):
+        caja = pygame.Rect(panel.x + 34 + i * 270, panel.y + 235, 260, 56)
+        rect_alpha(pantalla, (15, 31, 51), caja, 245, 9)
+        pygame.draw.rect(pantalla, (39, 62, 86), caja, 1, border_radius=9)
+        texto(etiqueta, fuente_mini, APAGADO, (caja.x + 13, caja.y + 9), sombra=False)
+        texto(valor, fuente, BLANCO, (caja.x + 13, caja.y + 27), sombra=False)
+
+    texto("SISTEMAS DE LA NAVE", fuente_mini_b, SUAVE, (panel.x + 36, panel.y + 307), sombra=False)
+    for i, k in enumerate(("energia", "oxigeno", "co2")):
+        nombre, color = RECURSOS_INFO[k]
+        x = panel.x + 36 + i * 178
+        valor = recursos_vis[k]
+        texto(nombre, fuente_mini, SUAVE, (x, panel.y + 330), sombra=False)
+        texto(f"{int(valor)}%", fuente_mini_b, BLANCO, (x + 148, panel.y + 330), derecha=True,
+              sombra=False)
+        pygame.draw.rect(pantalla, (25, 42, 63), (x, panel.y + 352, 148, 5), border_radius=2)
+        pygame.draw.rect(pantalla, color, (x, panel.y + 352, max(0, int(148 * valor / 100)), 5),
+                         border_radius=2)
+
+    hover_continuar = botones_pausa[0].collidepoint(mouse)
+    hover_menu = botones_pausa[1].collidepoint(mouse)
+    rect_alpha(pantalla, AZUL if hover_continuar else (30, 94, 143), botones_pausa[0],
+               255 if hover_continuar else 225, 11)
+    texto("CONTINUAR VUELO", fuente, BLANCO, botones_pausa[0].center, centro=True, sombra=False)
+    rect_alpha(pantalla, (23, 39, 59), botones_pausa[1], 255 if hover_menu else 220, 10)
+    pygame.draw.rect(pantalla, (60, 85, 111), botones_pausa[1], 1, border_radius=10)
+    texto("VOLVER A HOUSTON", fuente_mini_b, BLANCO if hover_menu else SUAVE,
+          botones_pausa[1].center, centro=True, sombra=False)
+    texto("ESC  CONTINUAR     ·     M  VOLVER AL MENÚ",
+          fuente_mini, APAGADO, (panel.centerx, panel.bottom - 13), centro=True, sombra=False)
+
+
+def volver_al_menu_desde_pausa():
+    global estado, formulario
+    estado = "menu"
+    formulario = None
+    jugadores.clear()
+    alertas.clear()
+    particulas.clear()
+
+
 # ====================
 # BUCLE PRINCIPAL
 # ====================
 
 def main():
-    global estado
+    global estado, tiempo_pausa
     while True:
         dt = min(clock.tick(60) / 1000, 0.05)
         tiempo = pygame.time.get_ticks() / 1000
@@ -1722,10 +1803,23 @@ def main():
             elif estado == "juego":
                 if evento.type == pygame.KEYDOWN:
                     if evento.key == pygame.K_ESCAPE:
-                        estado = "menu"
-                        jugadores.clear()
+                        tiempo_pausa = tiempo
+                        estado = "pausa"
                     elif evento.key == pygame.K_e and en_sector():
                         abrir_formulario()
+
+            elif estado == "pausa":
+                if evento.type == pygame.KEYDOWN:
+                    if evento.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                        estado = "juego"
+                    elif evento.key == pygame.K_m:
+                        volver_al_menu_desde_pausa()
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    if botones_pausa[0].collidepoint(pos):
+                        estado = "juego"
+                    elif botones_pausa[1].collidepoint(pos):
+                        volver_al_menu_desde_pausa()
 
             elif estado == "formulario" and formulario and formulario["exito"] is None:
                 f = formulario
@@ -1758,7 +1852,8 @@ def main():
                     jugadores.clear()
                     particulas.clear()
 
-        actualizar_efectos(dt)
+        if estado != "pausa":
+            actualizar_efectos(dt)
 
         if estado in ("juego", "formulario"):
             if estado == "juego":
@@ -1770,10 +1865,12 @@ def main():
 
         if estado == "menu":
             dibujar_menu(mouse, tiempo)
-        elif estado in ("juego", "formulario"):
-            dibujar_fondo(tiempo)
-            actualizar_camara_mapa(dt)
-            dibujar_mapa_vista(tiempo)
+        elif estado in ("juego", "formulario", "pausa"):
+            tiempo_escena = tiempo_pausa if estado == "pausa" else tiempo
+            dibujar_fondo(tiempo_escena)
+            if estado != "pausa":
+                actualizar_camara_mapa(dt)
+            dibujar_mapa_vista(tiempo_escena)
             dibujar_cabecera()
             mostrar_mision()
             dibujar_tripulacion()
@@ -1781,13 +1878,15 @@ def main():
             dibujar_flash()
             if estado == "formulario" and formulario:
                 dibujar_formulario(mouse, dt)
+            elif estado == "pausa":
+                dibujar_pausa(mouse, tiempo)
         elif estado == "final":
             dibujar_resultado(tiempo, True)
         elif estado == "fallo":
             dibujar_resultado(tiempo, False)
 
         # tras finalizar_exito / fallo el estado pudo cambiar durante la actualización
-        if estado not in ("juego", "formulario"):
+        if estado in ("menu", "final", "fallo"):
             dibujar_particulas()
         presentar_pantalla()
 
