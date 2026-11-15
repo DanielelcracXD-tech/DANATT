@@ -3449,9 +3449,16 @@ def main():
                             estado = "juego"
                             sonido_inicio.play()
                             break
-                if evento.type == pygame.KEYDOWN and pygame.K_1 <= evento.key <= pygame.K_4:
+                    if boton_ficha.collidepoint(pos):
+                        abrir_ficha()
+                if evento.type == pygame.KEYDOWN and evento.key == pygame.K_f:
+                    abrir_ficha()
+                elif evento.type == pygame.KEYDOWN and pygame.K_1 <= evento.key <= pygame.K_4:
                     crear_jugadores(evento.key - pygame.K_0)
                     estado = "juego"
+
+            elif estado == "ficha":
+                manejar_evento_ficha(evento)
 
             elif estado == "juego":
                 if evento.type == pygame.KEYDOWN:
@@ -3546,6 +3553,8 @@ def main():
         # el mapa/HUD y solo añaden la capa interactiva correspondiente.
         if estado == "menu":
             dibujar_menu(mouse, tiempo)
+        elif estado == "ficha":
+            dibujar_ficha(mouse, tiempo)
         elif estado in ("juego", "formulario", "pausa", "mapa"):
             tiempo_escena = tiempo_pausa if estado in ("pausa", "mapa") else tiempo
             dibujar_fondo(tiempo_escena)
@@ -4361,7 +4370,8 @@ def dibujar_menu(mouse, tiempo):
     texto("RACHA", fuente_mini_b, AMARILLO, (72, 670), sombra=False)
     texto("Misiones seguidas sin errores suman +250, +500… hasta +1.250.", fuente_mini, SUAVE,
           (166, 670), sombra=False)
-    texto("1-4: elegir tripulación   ·   F11: pantalla completa", fuente_mini, APAGADO,
+    dibujar_boton_ficha(mouse, tiempo)
+    texto("1-4: elegir tripulación   ·   F: ficha técnica   ·   F11: pantalla completa", fuente_mini, APAGADO,
           (1208, 684), derecha=True, sombra=False)
 
 
@@ -4430,6 +4440,337 @@ def dibujar_resultado(tiempo, exito):
         texto(f"RÉCORD GUARDADO  ·  PUESTO #{puesto_puntuacion}", fuente_mini_b, VERDE, (640, 548),
               centro=True, sombra=False)
     texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 580), centro=True, sombra=False)
+
+
+# =====================================================================
+# FICHA TÉCNICA DEL APOLO 13 (menú principal)
+# Todo el contenido procede del artículo de la NASA «Houston, hemos tenido
+# un problema» (John Uri, Centro Espacial Johnson, 13 de abril de 2020).
+# =====================================================================
+
+FICHA_X, FICHA_Y, FICHA_W, FICHA_H = 60, 36, 1160, 648
+FICHA_COL_ETIQUETA = 190
+FICHA_X_TEXTO = 250
+FICHA_Y_CONTENIDO = 136
+FICHA_Y_LIMITE = FICHA_Y + FICHA_H - 62
+FICHA_FUENTE = "Fuente: «Houston, hemos tenido un problema» · John Uri, NASA (13/04/2020)"
+
+ficha_pagina = 0
+
+FICHA_PAGINAS = [
+    {"titulo": "Datos de la misión", "color": AMARILLO,
+     "subtitulo": "Quiénes iban a bordo, qué iban a hacer y qué ocurrió",
+     "filas": [
+         ("TRIPULACIÓN", "Comandante James A. Lovell, piloto del módulo de mando John L. «Jack» Swigert "
+                         "y piloto del módulo lunar Fred W. Haise."),
+         ("NAVES", "Módulo de mando (CM) Odyssey y módulo lunar (LM) Aquarius, acoplados al Módulo de "
+                   "Servicio (SM)."),
+         ("OBJETIVO", "Entrar en órbita lunar y alunizar en las tierras altas de Fra Mauro, en la Luna."),
+         ("PLAN LUNAR", "Estancia de 33 horas en la Luna con dos caminatas espaciales: estudios geológicos "
+                        "e instrumentos científicos que enviarían datos a la Tierra mucho después de su "
+                        "partida. Swigert tenía su propia investigación científica desde la órbita lunar."),
+         ("CONTROL DE MISIÓN", "Centro de Naves Espaciales Tripuladas (MSC), hoy Centro Espacial Johnson, en "
+                               "Houston. Director de vuelo: Eugene F. «Gene» Kranz. Capcom (comunicador "
+                               "de la cápsula): Jack R. Lousma."),
+         ("EL INCIDENTE", "Tercer día de vuelo, a unos 205.000 km de la Tierra, justo después de una "
+                          "transmisión de televisión desde Aquarius y Odyssey. Ocurrió a las 55 h 55 min "
+                          "4 s de vuelo, durante tareas rutinarias: remover el oxígeno líquido criogénico "
+                          "y el hidrógeno líquido de los tanques del Módulo de Servicio."),
+         ("DESENLACE", "Entre los artículos relacionados de la NASA figura «La tripulación del Apolo 13 "
+                       "regresa sana y salva a la Tierra»: el rescate terminó bien."),
+     ]},
+    {"titulo": "Cronología I · El accidente", "color": ROJO_CLARO,
+     "subtitulo": "Los primeros 15 minutos de la crisis",
+     "filas": [
+         ("55:55:04", "Un sordo golpe recorre la nave acoplada. El Control de Misión ve un cambio repentino "
+                      "en la señal de la Antena de Alta Ganancia, un crujido de radio y un reinicio del "
+                      "ordenador principal."),
+         ("+1 a 2 segundos", "A bordo se encienden la Alarma Maestra, la luz de Subtensión del Bus B de CC y "
+                             "una luz de celda de combustible. Swigert llama: «Houston, tenemos un "
+                             "problema». Lousma pide repetir y Lovell informa de la caída de tensión en "
+                             "el bus principal B."),
+         ("+5 minutos", "Nadie conoce la causa. Como el Bus B volvió a la normalidad, la primera reacción "
+                        "es culpar a la instrumentación o a un evento transitorio. Haise habla de un "
+                        "fuerte estallido; se sospecha de un micrometeorito en el módulo lunar y Lovell y "
+                        "Swigert cierran la escotilla para aislar las dos naves."),
+         ("+14 minutos", "El tanque de oxígeno 2 marca cero y Lovell ve que se libera gas al espacio. "
+                         "Ya no puede ser solo un problema de instrumentación."),
+         ("+15 minutos", "Kranz habla a sus controladores: el LM sigue acoplado y funcionando, así que "
+                         "cuentan con él para volver. Cierra con una frase célebre: «Resolvamos el "
+                         "problema, pero no lo empeore con conjeturas.»"),
+     ]},
+    {"titulo": "Cronología II · Un refugio seguro", "color": AZUL,
+     "subtitulo": "De la primera hora a la conferencia de prensa",
+     "filas": [
+         ("Menos de 1 hora", "Kranz fija el nuevo plan: abandonar el alunizaje, dar una vuelta alrededor de "
+                             "la Luna y volver a casa lo antes posible. La prioridad es retomar una "
+                             "trayectoria de retorno libre."),
+         ("+90 minutos", "Lousma informa a la tripulación de que el tanque 1 baja lentamente hasta cero y "
+                         "Houston empieza a pensar en el módulo lunar como bote salvavidas."),
+         ("Menos de 3 horas", "Carrera contrarreloj: a Odyssey solo le quedan 15 minutos de energía. Haise "
+                              "enciende Aquarius («Jack, he encendido el módulo lunar») con una activación "
+                              "abreviada. Surge un problema inesperado: el LM usa la misma frecuencia que "
+                              "la etapa S-IVB. Swigert desactiva Odyssey en menos de tres horas desde el "
+                              "inicio de la crisis."),
+         ("Medianoche", "Conferencia de prensa de Kraft, McDivitt y Sjoberg. Kraft describe «la situación "
+                        "más grave que jamás hayamos tenido en vuelos espaciales tripulados», aunque los "
+                        "directivos confían en que la tripulación regresará sana y salva."),
+         ("Prioridades", "Lunney plantea tres frentes: las maniobras para volver rápido y seguro, reducir "
+                         "el consumo de energía del LM para que sus baterías duren y evaluar los "
+                         "consumibles, sobre todo la eliminación de dióxido de carbono."),
+     ]},
+    {"titulo": "Cronología III · Alrededor de la Luna", "color": VERDE,
+     "subtitulo": "Retorno libre, récord de distancia y encendido PC+2",
+     "filas": [
+         ("61:30", "A 216.626 millas y unas 5 h 30 min tras el accidente, encendido de 34 segundos del "
+                   "motor DPS del LM. La nave vuelve a una trayectoria de retorno libre y su paso más "
+                   "cercano por la cara oculta de la Luna sube de 69 a 156 millas. Sin más maniobras "
+                   "habrían amerizado en el Océano Índico hacia las 151 h 45 min, y el buque principal "
+                   "de recuperación (USS Iwo Jima) estaba en el Pacífico."),
+         ("76:42", "El Apolo 13 entra en la sombra de la Luna. Los astronautas ven las estrellas que "
+                   "ocultaba la nube de escombros que seguía a la nave."),
+         ("+26 minutos", "Según lo previsto desaparece tras la Luna y se interrumpen las comunicaciones. "
+                         "Lovell, Swigert y Haise establecen el récord de viajeros espaciales más "
+                         "alejados de la Tierra: 248.655 millas. La señal vuelve 25 minutos después."),
+         ("Tras la cara oculta", "La etapa S-IVB impacta la Luna y el sismómetro del Apolo 12 lo registra "
+                                 "a 137 km. Lovell responde con ironía: «Bueno, al menos algo funcionó en "
+                                 "este vuelo»."),
+         ("79:28 · PC+2", "Con la Luna a más de 6.200 millas, el DPS enciende 4 min 24 s, dos horas después "
+                          "del pericintio. Acelera el regreso 10 horas y traslada el amerizaje al "
+                          "Pacífico. Después apagan Aquarius para ahorrar baterías: la cabina se enfría "
+                          "y cuesta dormir."),
+     ]},
+    {"titulo": "Cronología IV · Rumbo a la Tierra", "color": AZUL,
+     "subtitulo": "Reactivar Odyssey y corregir la trayectoria",
+     "filas": [
+         ("90:25", "A 216.277 millas, el Apolo 13 pasa del campo gravitatorio de la Luna al de la Tierra y "
+                   "empieza a acelerar lentamente hacia casa."),
+         ("Reactivación", "Kerwin y Swigert configuran los 417 interruptores y disyuntores de Odyssey para "
+                          "una breve activación parcial y para la futura reentrada. Swigert comprueba que "
+                          "ambos buses principales funcionan, algo necesario para reentrar."),
+         ("97 horas", "Haise oye un golpe en la etapa de descenso del LM y ve una «lluvia de copos de "
+                      "nieve». Sin que nadie lo supiera, la batería 2 (de cuatro) de la etapa de descenso "
+                      "sufrió un cortocircuito, con posible fuga peligrosa de oxígeno e hidrógeno. Horas "
+                      "después, Houston aconsejó apagarla, pero la decisión se revirtió sin comprender "
+                      "del todo el problema."),
+         ("105:18", "A 175.000 millas, encendido de 14,8 segundos del DPS sin usar la computadora del LM, "
+                    "para ahorrar energía y agua de refrigeración. Mantienen la actitud con observaciones "
+                    "visuales de la Tierra y el Sol por las ventanas. Ajusta con precisión la trayectoria "
+                    "de reentrada."),
+         ("Unas 38 h restantes", "Lovell toma la guardia a bordo mientras Swigert y Haise descansan unas "
+                                 "horas."),
+     ]},
+    {"titulo": "Qué falló a bordo", "color": ROJO_CLARO,
+     "subtitulo": "Lo que mostraban los instrumentos tras el golpe",
+     "filas": [
+         ("BUSES ELÉCTRICOS", "Bus principal B de CC: cero voltios. Bus de corriente alterna 2: cero "
+                              "voltios. Bus principal A de CC: 25,5 voltios en lugar de los 27 habituales."),
+         ("CELDAS DE COMBUSTIBLE", "Combinan oxígeno con hidrógeno para dar energía a los buses de CC. Dos "
+                                   "de las tres parecían fuera de servicio (FC 1 y FC 3) y Haise no logró "
+                                   "reconectarlas. Se quiso preservar la FC 2 el mayor tiempo posible."),
+         ("SENSORES", "El sensor de cantidad del tanque de oxígeno 2 oscilaba entre el 20 % y el 60 %; "
+                      "ese tanque ya había mostrado anomalías en la prueba de demostración de marzo. "
+                      "También saltaron alarmas en los tanques de helio del sistema de control de reacción "
+                      "(RCS)."),
+         ("TANQUES DE OXÍGENO", "Apagar la celda 3 no detuvo la fuga: el problema estaba en los tanques que "
+                                "suministraban oxígeno a las tres celdas. El tanque 2 estaba vacío y el "
+                                "tanque 1 casi lleno."),
+         ("ENERGÍA", "Al ritmo al que bajaba el tanque 1, quedaban menos de dos horas de generación de "
+                     "energía. La fuga hizo que los propulsores RCS se encendieran para mantener la "
+                     "orientación, importante para las comunicaciones."),
+         ("REGLA DE VUELO", "La nave no podía entrar en órbita lunar con solo dos celdas operativas, así "
+                            "que apagar la celda 3 descartó el alunizaje."),
+         ("CAUSA", "En esos momentos ni la tripulación ni el Control de Misión conocían la causa del "
+                   "problema."),
+     ]},
+    {"titulo": "Consumibles", "color": AMARILLO,
+     "subtitulo": "Oxígeno, energía y agua para tres tripulantes",
+     "filas": [
+         ("LM COMO BOTE SALVAVIDAS", "El módulo lunar podía abastecer a dos tripulantes durante dos días y "
+                                     "ahora tendría que abastecer a tres durante cuatro."),
+         ("CONSUMIBLES ESENCIALES", "Oxígeno para respirar, energía para navegación y soporte vital, agua "
+                                    "para beber y refrigerar los equipos electrónicos, y sistemas para "
+                                    "eliminar el dióxido de carbono."),
+         ("OXÍGENO DEL CM", "Dos fuentes: un tanque de compensación y un sistema de presurización de tres "
+                            "tanques para represurizar la cabina. Había que aislar el de compensación para "
+                            "tener oxígeno suficiente en la reentrada."),
+         ("ENERGÍA", "Se reduce el consumo del LM para que sus baterías duren lo más posible, y tras el "
+                     "PC+2 se apaga Aquarius. Odyssey se desactiva por completo."),
+         ("FRÍO Y SUEÑO", "Sin equipos electrónicos que generen calor, la temperatura de la cabina bajó a "
+                          "niveles incómodos y dificultó el sueño."),
+         ("BALANCE", "Brand preguntó por los consumibles y todo parecía suficiente para que regresaran "
+                     "sanos y salvos."),
+     ]},
+    {"titulo": "Un cuadrado en un agujero redondo", "color": VERDE,
+     "subtitulo": "El problema del dióxido de carbono y su solución improvisada",
+     "filas": [
+         ("DEPURAR EL CO2", "Los contenedores de hidróxido de litio (LiOH) limpian el CO2 de la cabina. "
+                            "Kerwin aconsejó trasladarlos de Odyssey a Aquarius: el condensado de la fría "
+                            "cabina del CM podía inutilizarlos."),
+         ("EL PROBLEMA", "Los cartuchos de LiOH de Odyssey son cuadrados y el sistema de Aquarius usa "
+                         "cartuchos redondos: había que «encajar una pieza cuadrada en un agujero redondo»."),
+         ("EL EQUIPO", "Un equipo liderado por Robert E. «Ed» Smylie, con James V. Correale y el director "
+                       "de pruebas James C. «Jim» LeBlanc, trabajó solo con réplicas de lo que la "
+                       "tripulación tenía a bordo."),
+         ("EL INVENTO", "Prenda refrigerada por líquido y manguera de entrada de un traje espacial, bolsas "
+                        "de plástico, una tarjeta de instrucciones del plan de vuelo y, por supuesto, "
+                        "cinta adhesiva para conectar el cartucho del CM a la manguera de salida del LM."),
+         ("PRUEBA Y RESULTADO", "Se probó en una cámara de altitud y Kerwin comunicó el procedimiento. "
+                                "Swigert y Lovell construyeron dos dispositivos y, minutos después de "
+                                "instalar el primero en Aquarius, los niveles de CO2 bajaron "
+                                "significativamente."),
+     ]},
+    {"titulo": "Control de Misión y vida a bordo", "color": AZUL,
+     "subtitulo": "Relevos, directivos y guardias durante el regreso",
+     "filas": [
+         ("RELEVO DE KRANZ", "Al acabar su turno, Kranz entrega el control a Glynn S. Lunney y su equipo; "
+                             "Lousma sigue de Capcom. Esa noche el equipo saliente no se fue a casa: "
+                             "analizó todos los datos. Lunney guía los procedimientos para activar "
+                             "Aquarius antes de apagar Odyssey."),
+         ("EQUIPOS", "Equipo Oro de Gerald D. «Gerry» Griffin, Equipo Negro de Lunney y Equipo Maroon "
+                     "de Windler. El Equipo Blanco de Kranz regresó 18 horas después del accidente."),
+         ("CAPCOM", "Se turnaron Jack R. Lousma, Joseph P. Kerwin, por un breve tiempo Charles M. Duke "
+                    "(recuperado del sarampión alemán) y Vance D. Brand."),
+         ("DIRECTIVOS", "Christopher C. Kraft, James A. McDivitt (Programa Apolo) y Sigurd A. «Sig» "
+                        "Sjoberg (Operaciones de Vuelo). McDivitt recordó que la tripulación del Gemini 8 "
+                        "(1966) volvió en 20 minutos; al Apolo 13 le quedaban muchas horas de viaje."),
+         ("PC+2 EN DIRECTO", "El Centro de Control se llenó de astronautas y directivos, incluido el "
+                             "administrador de la NASA, Thomas O. Paine, para ver el encendido."),
+         ("GUARDIA Y PTC", "Un astronauta hacía guardia siempre; Lovell y Swigert durmieron unas cinco "
+                           "horas en Odyssey mientras Haise vigilaba Aquarius. En modo de Control Térmico "
+                           "Pasivo (PTC) la nave giraba una vez cada 11 minutos para repartir las "
+                           "temperaturas."),
+     ]},
+]
+
+
+def _ficha_filas(pagina):
+    """Divide cada fila en líneas y calcula su altura para la página indicada."""
+    ancho_texto = FICHA_W - FICHA_X_TEXTO - 36
+    filas = []
+    for etiqueta, cuerpo in pagina["filas"]:
+        lin_et = partir_texto(etiqueta, fuente_mini_b, FICHA_COL_ETIQUETA - 12)
+        lin_tx = partir_texto(cuerpo, fuente_o, ancho_texto)
+        alto = max(len(lin_et) * 17, len(lin_tx) * 20) + 14
+        filas.append((lin_et, lin_tx, alto))
+    return filas
+
+
+def _ficha_botones():
+    """Rectángulos de los botones de la ficha técnica."""
+    y = FICHA_Y + FICHA_H - 52
+    anterior = pygame.Rect(FICHA_X + 36, y, 130, 34)
+    siguiente = pygame.Rect(anterior.right + 12, y, 130, 34)
+    cerrar = pygame.Rect(FICHA_X + FICHA_W - 36 - 130, y, 130, 34)
+    return anterior, siguiente, cerrar
+
+
+boton_ficha = pygame.Rect(72, 568, 530, 46)
+
+
+def abrir_ficha():
+    """Muestra la ficha técnica desde el menú principal, empezando por la primera página."""
+    global estado, ficha_pagina
+    ficha_pagina = 0
+    estado = "ficha"
+
+
+def cerrar_ficha():
+    """Vuelve al menú principal."""
+    global estado
+    estado = "menu"
+
+
+def cambiar_pagina_ficha(delta):
+    """Avanza o retrocede una página sin salirse del rango."""
+    global ficha_pagina
+    ficha_pagina = max(0, min(len(FICHA_PAGINAS) - 1, ficha_pagina + delta))
+
+
+def manejar_evento_ficha(evento):
+    """Procesa teclado y ratón mientras la ficha técnica está abierta."""
+    if evento.type == pygame.KEYDOWN:
+        if evento.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_f):
+            cerrar_ficha()
+        elif evento.key in (pygame.K_RIGHT, pygame.K_d, pygame.K_PAGEDOWN, pygame.K_SPACE):
+            cambiar_pagina_ficha(1)
+        elif evento.key in (pygame.K_LEFT, pygame.K_a, pygame.K_PAGEUP):
+            cambiar_pagina_ficha(-1)
+    elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+        pos = convertir_mouse(evento.pos)
+        anterior, siguiente, cerrar = _ficha_botones()
+        if anterior.collidepoint(pos):
+            cambiar_pagina_ficha(-1)
+        elif siguiente.collidepoint(pos):
+            cambiar_pagina_ficha(1)
+        elif cerrar.collidepoint(pos):
+            cerrar_ficha()
+    elif evento.type == pygame.MOUSEWHEEL:
+        cambiar_pagina_ficha(-evento.y)
+
+
+def dibujar_boton_ficha(mouse, tiempo):
+    """Botón del menú principal que abre la ficha técnica."""
+    hover = boton_ficha.collidepoint(mouse)
+    if hover:
+        rect_alpha(pantalla, AMARILLO, boton_ficha.inflate(10, 10), 28 + 24 * (0.5 + 0.5 * math.sin(tiempo * 4)), 18)
+    pygame.draw.rect(pantalla, mezclar((8, 18, 35), AMARILLO, 0.1 if hover else 0.0), boton_ficha, border_radius=14)
+    pygame.draw.rect(pantalla, AMARILLO if hover else BORDE, boton_ficha, 2 if hover else 1, border_radius=14)
+    # Icono de documento.
+    doc = pygame.Rect(boton_ficha.x + 18, boton_ficha.y + 10, 22, 26)
+    pygame.draw.rect(pantalla, AMARILLO if hover else SUAVE, doc, 2, border_radius=3)
+    for k in range(3):
+        pygame.draw.line(pantalla, AMARILLO if hover else SUAVE, (doc.x + 5, doc.y + 8 + k * 5),
+                         (doc.right - 5, doc.y + 8 + k * 5), 1)
+    texto("FICHA TÉCNICA  ·  ¿QUÉ PASÓ EN EL APOLO 13?", fuente_mini_b, BLANCO if hover else SUAVE,
+          (boton_ficha.x + 56, boton_ficha.y + 8), sombra=False)
+    texto("Datos, cronología y sistemas de la misión real", fuente_micro, APAGADO,
+          (boton_ficha.x + 56, boton_ficha.y + 27), sombra=False)
+    texto("[F]", fuente_mini_b, AMARILLO if hover else APAGADO,
+          (boton_ficha.right - 18, boton_ficha.y + 14), derecha=True, sombra=False)
+
+
+def dibujar_ficha(mouse, tiempo):
+    """Dibuja una página de la ficha técnica con datos del artículo de la NASA."""
+    dibujar_fondo(tiempo)
+    rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 150, 0)
+    panel = pygame.Rect(FICHA_X, FICHA_Y, FICHA_W, FICHA_H)
+    pagina = FICHA_PAGINAS[ficha_pagina]
+    color = pagina["color"]
+    rect_alpha(pantalla, PANEL_BG, panel, 250, 20)
+    pygame.draw.rect(pantalla, mezclar(BORDE, color, 0.35), panel, 1, border_radius=20)
+    pygame.draw.line(pantalla, color, (panel.x + 30, panel.y + 2), (panel.right - 30, panel.y + 2), 3)
+
+    texto("FICHA TÉCNICA  ·  APOLLO 13", fuente_mini_b, AMARILLO, (panel.x + 36, panel.y + 20), sombra=False)
+    texto(f"PÁGINA {ficha_pagina + 1} / {len(FICHA_PAGINAS)}", fuente_mini_b, SUAVE,
+          (panel.right - 36, panel.y + 20), derecha=True, sombra=False)
+    texto(pagina["titulo"], fuente_mediana, BLANCO, (panel.x + 36, panel.y + 42), sombra=False)
+    texto(pagina["subtitulo"], fuente_mini, SUAVE, (panel.x + 36, panel.y + 78), sombra=False)
+    pygame.draw.line(pantalla, LINEA, (panel.x + 30, FICHA_Y_CONTENIDO - 8),
+                     (panel.right - 30, FICHA_Y_CONTENIDO - 8), 1)
+
+    y = FICHA_Y_CONTENIDO
+    for lin_et, lin_tx, alto in _ficha_filas(pagina):
+        pygame.draw.rect(pantalla, color, (panel.x + 36, y + 2, 3, alto - 14), border_radius=2)
+        for i, linea in enumerate(lin_et):
+            texto(linea, fuente_mini_b, color, (panel.x + 48, y + i * 17), sombra=False)
+        for i, linea in enumerate(lin_tx):
+            texto(linea, fuente_o, BLANCO, (panel.x + FICHA_X_TEXTO, y - 1 + i * 20), sombra=False)
+        y += alto
+        pygame.draw.line(pantalla, (22, 38, 58), (panel.x + 36, y - 7), (panel.right - 36, y - 7), 1)
+
+    anterior, siguiente, cerrar = _ficha_botones()
+    for rect, etiqueta, activo in ((anterior, "◄  ANTERIOR", ficha_pagina > 0),
+                                   (siguiente, "SIGUIENTE  ►", ficha_pagina < len(FICHA_PAGINAS) - 1),
+                                   (cerrar, "CERRAR", True)):
+        hover = activo and rect.collidepoint(mouse)
+        rect_alpha(pantalla, AMARILLO if hover else (23, 39, 59), rect, 255 if hover else 220, 10)
+        pygame.draw.rect(pantalla, (60, 85, 111) if activo else (35, 50, 68), rect, 1, border_radius=10)
+        texto(etiqueta, fuente_mini_b, (20, 16, 4) if hover else (BLANCO if activo else APAGADO),
+              rect.center, centro=True, sombra=False)
+    texto(FICHA_FUENTE, fuente_micro, APAGADO, (panel.centerx + 20, panel.bottom - 40), centro=True, sombra=False)
+    texto("← →  cambiar página   ·   ESC  cerrar", fuente_micro, APAGADO,
+          (panel.centerx + 20, panel.bottom - 24), centro=True, sombra=False)
 
 
 if __name__ == "__main__":
