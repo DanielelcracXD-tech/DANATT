@@ -2207,6 +2207,62 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
             pygame.draw.circle(pantalla, luz, centro_luz, 4, 1)
 
 
+def dibujar_rack_tecnico(sala, dx, dy, ancho, alto, color, modulos=3):
+    """Dibuja un gabinete modular con indicadores y paneles de estado."""
+    caja = pygame.Rect(sala.x + dx, sala.y + dy, ancho, alto)
+    pygame.draw.rect(pantalla, (8, 17, 29), caja.inflate(4, 4), border_radius=5)
+    pygame.draw.rect(pantalla, (23, 39, 55), caja, border_radius=4)
+    pygame.draw.rect(pantalla, mezclar((48, 69, 87), color, 0.48), caja, 1, border_radius=4)
+    pygame.draw.rect(pantalla, mezclar((26, 43, 59), color, 0.42),
+                     (caja.x + 5, caja.y + 5, caja.width - 10, 5), border_radius=2)
+    alto_modulo = max(8, (alto - 20) // modulos)
+    for i in range(modulos):
+        y = caja.y + 14 + i * alto_modulo
+        modulo = pygame.Rect(caja.x + 5, y, caja.width - 10, min(alto_modulo - 2, caja.bottom - y - 4))
+        pygame.draw.rect(pantalla, (12, 27, 41), modulo, border_radius=2)
+        pygame.draw.rect(pantalla, (48, 67, 83), modulo, 1, border_radius=2)
+        pygame.draw.line(pantalla, color, (modulo.x + 4, modulo.centery),
+                         (modulo.right - 7, modulo.centery), 1)
+        pygame.draw.circle(pantalla, VERDE if i % 2 == 0 else AMARILLO,
+                           (modulo.right - 4, modulo.centery), 1)
+    return caja
+
+
+def dibujar_tanque_tecnico(sala, dx, dy, ancho, alto, color):
+    """Representa un cilindro presurizado con válvula y nivel de contenido."""
+    tanque = pygame.Rect(sala.x + dx, sala.y + dy, ancho, alto)
+    pygame.draw.rect(pantalla, (9, 20, 33), tanque.inflate(4, 3), border_radius=ancho // 2)
+    pygame.draw.rect(pantalla, (26, 49, 65), tanque, border_radius=ancho // 2)
+    pygame.draw.rect(pantalla, color, tanque, 1, border_radius=ancho // 2)
+    pygame.draw.line(pantalla, mezclar((25, 45, 59), color, 0.55),
+                     (tanque.x + 5, tanque.y + 9), (tanque.x + 5, tanque.bottom - 9), 2)
+    pygame.draw.rect(pantalla, color, (tanque.centerx - 4, tanque.y - 4, 8, 5), border_radius=2)
+    pygame.draw.rect(pantalla, (71, 91, 108),
+                     (tanque.x + 5, tanque.bottom - 9, tanque.width - 10, 3), border_radius=1)
+    return tanque
+
+
+def dibujar_monitor_tecnico(sala, dx, dy, ancho, alto, color, tiempo, fase=0):
+    """Dibuja una pantalla con rejilla y trazo de telemetría animado."""
+    marco = pygame.Rect(sala.x + dx, sala.y + dy, ancho, alto)
+    pygame.draw.rect(pantalla, (8, 18, 30), marco.inflate(4, 4), border_radius=5)
+    pygame.draw.rect(pantalla, (25, 43, 60), marco, border_radius=4)
+    pygame.draw.rect(pantalla, mezclar((48, 70, 88), color, 0.45), marco, 1, border_radius=4)
+    visor = marco.inflate(-8, -8)
+    pygame.draw.rect(pantalla, (8, 25, 36), visor, border_radius=2)
+    pygame.draw.line(pantalla, (32, 54, 68), (visor.x + 2, visor.centery),
+                     (visor.right - 2, visor.centery), 1)
+    puntos = []
+    for i in range(5):
+        x = visor.x + 3 + i * max(1, (visor.width - 6) // 4)
+        y = visor.centery + int(math.sin(tiempo * 2.4 + fase + i * 1.25) * max(2, visor.height // 4))
+        puntos.append((min(x, visor.right - 2), y))
+    if len(puntos) > 1:
+        pygame.draw.lines(pantalla, color, False, puntos, 1)
+    pygame.draw.circle(pantalla, color, puntos[-1], 2)
+    return marco
+
+
 def dibujar_detalles_sala(nombre, sala, color, tiempo):
     """Añade iluminación, paneles y mobiliario temático a las salas."""
     interior = sala.inflate(-10, -10)
@@ -2234,6 +2290,12 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
                              (litera.right - 5, litera.y + 23), 1)
         pygame.draw.rect(pantalla, (25, 43, 61), (sala.x + 72, sala.y + 103, 56, 12), border_radius=3)
         pygame.draw.rect(pantalla, color, (sala.x + 72, sala.y + 103, 56, 12), 1, border_radius=3)
+        armario = pygame.Rect(sala.x + 218, sala.y + 65, 40, 30)
+        pygame.draw.rect(pantalla, (22, 38, 54), armario, border_radius=4)
+        pygame.draw.rect(pantalla, color, armario, 1, border_radius=4)
+        pygame.draw.line(pantalla, (85, 105, 121), (armario.x + 4, armario.centery),
+                         (armario.right - 4, armario.centery), 1)
+        pygame.draw.circle(pantalla, AMARILLO, (armario.right - 6, armario.centery - 6), 2)
     elif nombre == "INVERNADERO":
         for indice, x in enumerate((sala.x + 48, sala.x + 100, sala.x + 152)):
             jardinera = pygame.Rect(x, sala.y + 91, 42, 16)
@@ -2272,6 +2334,16 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
                          (sala.x + 244, sala.y + 74), 3)
         for x in (sala.x + 202, sala.x + 244):
             pygame.draw.line(pantalla, color, (x, sala.y + 67), (x, sala.y + 81), 3)
+        panel = pygame.Rect(sala.x + 48, sala.y + 48, 92, 24)
+        pygame.draw.rect(pantalla, (12, 27, 40), panel, border_radius=4)
+        pygame.draw.rect(pantalla, color, panel, 1, border_radius=4)
+        texto("RITMO", fuente_micro, SUAVE, (panel.x + 5, panel.y + 6), sombra=False)
+        pulso = [
+            (panel.x + 42, panel.centery), (panel.x + 52, panel.centery),
+            (panel.x + 58, panel.y + 5), (panel.x + 64, panel.bottom - 5),
+            (panel.x + 70, panel.centery), (panel.right - 5, panel.centery),
+        ]
+        pygame.draw.lines(pantalla, VERDE, False, pulso, 1)
     elif nombre == "COMEDOR":
         zona_comida = pygame.Rect(sala.x + 6, sala.y + 31, 142, 106)
         zona_agua = pygame.Rect(sala.x + 152, sala.y + 31, 142, 106)
@@ -2324,6 +2396,215 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
         pygame.draw.rect(pantalla, (246, 115, 137), botiquin, 1, border_radius=3)
         pygame.draw.rect(pantalla, (246, 115, 137), (botiquin.centerx - 2, botiquin.y + 4, 4, 10))
         pygame.draw.rect(pantalla, (246, 115, 137), (botiquin.centerx - 5, botiquin.y + 7, 10, 4))
+    elif nombre == "ENERGIA":
+        pygame.draw.line(pantalla, (93, 75, 43), (sala.x + 92, sala.y + 143),
+                         (sala.x + 307, sala.y + 143), 3)
+        texto("BANCOS DE ENERGÍA", fuente_micro, AMARILLO,
+              (sala.centerx, sala.y + 128), centro=True, sombra=False)
+        for dx in (91, 168, 245):
+            rack = dibujar_rack_tecnico(sala, dx, 153, 58, 68, color, 3)
+            pygame.draw.line(pantalla, color, (rack.centerx, sala.y + 143),
+                             (rack.centerx, rack.y), 2)
+            pygame.draw.circle(pantalla, AMARILLO, (rack.centerx, sala.y + 143), 3)
+    elif nombre == "OXIGENO":
+        pygame.draw.line(pantalla, (47, 105, 103), (sala.x + 92, sala.y + 145),
+                         (sala.x + 341, sala.y + 145), 4)
+        texto("RESERVAS PRESURIZADAS", fuente_micro, color,
+              (sala.centerx, sala.y + 128), centro=True, sombra=False)
+        for dx in (105, 184, 263):
+            tanque = dibujar_tanque_tecnico(sala, dx, 155, 38, 65, color)
+            pygame.draw.line(pantalla, color, (tanque.centerx, sala.y + 145),
+                             (tanque.centerx, tanque.y), 2)
+            pygame.draw.circle(pantalla, (179, 231, 218), (tanque.centerx, tanque.y + 12), 3, 1)
+    elif nombre == "NAVEGACION":
+        marco = pygame.Rect(sala.x + 84, sala.y + 148, 236, 73)
+        visor = marco.inflate(-10, -10)
+        pygame.draw.rect(pantalla, (8, 18, 30), marco.inflate(4, 4), border_radius=6)
+        pygame.draw.rect(pantalla, (22, 39, 57), marco, border_radius=5)
+        pygame.draw.rect(pantalla, color, marco, 1, border_radius=5)
+        pygame.draw.rect(pantalla, (7, 22, 35), visor, border_radius=3)
+        for x in range(visor.x + 12, visor.right, 25):
+            pygame.draw.line(pantalla, (25, 50, 67), (x, visor.y + 2), (x, visor.bottom - 2), 1)
+        for y in range(visor.y + 12, visor.bottom, 18):
+            pygame.draw.line(pantalla, (25, 50, 67), (visor.x + 2, y), (visor.right - 2, y), 1)
+        pygame.draw.ellipse(pantalla, (61, 107, 139), visor.inflate(-24, -10), 1)
+        pygame.draw.arc(pantalla, color, visor.inflate(-42, -4), 0.2, 2.8, 1)
+        centro = (visor.centerx, visor.centery)
+        pygame.draw.circle(pantalla, AMARILLO, centro, 3)
+        pygame.draw.polygon(pantalla, BLANCO, [
+            (centro[0] + 30, centro[1] - 3), (centro[0] + 21, centro[1] + 2),
+            (centro[0] + 22, centro[1] - 7),
+        ])
+        for dx, dy in ((-45, -12), (53, 12), (8, 19)):
+            pygame.draw.circle(pantalla, AZUL, (centro[0] + dx, centro[1] + dy), 2)
+    elif nombre == "COMUNICACIONES":
+        centro = (sala.x + 139, sala.y + 179)
+        plato = pygame.Rect(centro[0] - 43, centro[1] - 26, 86, 49)
+        pygame.draw.ellipse(pantalla, (21, 37, 53), plato)
+        pygame.draw.arc(pantalla, color, plato, 0.15, math.pi - 0.15, 3)
+        pygame.draw.line(pantalla, (135, 157, 174), (centro[0], centro[1] + 8),
+                         (centro[0] + 16, centro[1] + 47), 3)
+        pygame.draw.line(pantalla, (135, 157, 174), (centro[0] + 16, centro[1] + 47),
+                         (centro[0] - 14, centro[1] + 47), 2)
+        pygame.draw.circle(pantalla, AMARILLO, (centro[0] + 1, centro[1] - 1), 4)
+        for radio in (21, 31):
+            pygame.draw.arc(pantalla, color, (centro[0] - radio, centro[1] - radio - 8,
+                                               radio * 2, radio * 2),
+                            math.radians(218), math.radians(322), 1)
+        dibujar_monitor_tecnico(sala, 232, 153, 108, 57, color, tiempo, 0.8)
+        pygame.draw.line(pantalla, (87, 111, 130), (sala.x + 180, sala.y + 200),
+                         (sala.x + 224, sala.y + 200), 2)
+    elif nombre == "SOPORTE VITAL":
+        pygame.draw.line(pantalla, (58, 102, 91), (sala.x + 91, sala.y + 145),
+                         (sala.x + 337, sala.y + 145), 4)
+        texto("FILTROS · CIRCULACIÓN DE AIRE", fuente_micro, color,
+              (sala.centerx, sala.y + 128), centro=True, sombra=False)
+        for dx in (96, 174, 252):
+            rack = dibujar_rack_tecnico(sala, dx, 153, 58, 66, color, 3)
+            pygame.draw.line(pantalla, color, (rack.centerx, sala.y + 145),
+                             (rack.centerx, rack.y), 2)
+            pygame.draw.polygon(pantalla, (154, 223, 185), [
+                (rack.centerx - 4, sala.y + 148), (rack.centerx + 4, sala.y + 148),
+                (rack.centerx, sala.y + 153),
+            ])
+    elif nombre == "TELEMETRIA":
+        texto("ESTACIONES DE TELEMETRÍA", fuente_micro, color,
+              (sala.centerx, sala.y + 132), centro=True, sombra=False)
+        for indice, dx in enumerate((88, 178, 268)):
+            dibujar_monitor_tecnico(sala, dx, 153, 72, 57, color, tiempo, indice * 1.4)
+            pygame.draw.rect(pantalla, (37, 54, 69),
+                             (sala.x + dx + 18, sala.y + 212, 36, 4), border_radius=2)
+            pygame.draw.line(pantalla, (84, 105, 122),
+                             (sala.x + dx + 22, sala.y + 216),
+                             (sala.x + dx + 18, sala.y + 222), 2)
+            pygame.draw.line(pantalla, (84, 105, 122),
+                             (sala.x + dx + 50, sala.y + 216),
+                             (sala.x + dx + 54, sala.y + 222), 2)
+    elif nombre == "OBSERVATORIO":
+        marco = pygame.Rect(sala.x + 66, sala.y + 53, 151, 59)
+        visor = marco.inflate(-8, -8)
+        pygame.draw.rect(pantalla, (12, 24, 38), marco.inflate(4, 4), border_radius=8)
+        pygame.draw.rect(pantalla, (29, 48, 66), marco, border_radius=7)
+        pygame.draw.rect(pantalla, color, marco, 2, border_radius=7)
+        pygame.draw.rect(pantalla, (4, 13, 28), visor, border_radius=5)
+        for indice, (dx, dy) in enumerate(((12, 10), (34, 24), (59, 8), (92, 15), (124, 30))):
+            brillo = 0.55 + 0.45 * math.sin(tiempo * 2 + indice)
+            pygame.draw.circle(pantalla, mezclar((48, 77, 104), BLANCO, brillo),
+                               (visor.x + dx, visor.y + dy), 1 + indice % 2)
+        planeta = (visor.centerx + 15, visor.centery - 2)
+        pygame.draw.circle(pantalla, (56, 122, 173), planeta, 15)
+        pygame.draw.arc(pantalla, (132, 203, 222), (planeta[0] - 19, planeta[1] - 7, 38, 15),
+                        0.2, 2.9, 2)
+        pygame.draw.circle(pantalla, (101, 169, 131), (planeta[0] - 4, planeta[1] - 3), 5)
+        pygame.draw.line(pantalla, color, (sala.x + 75, sala.y + 124),
+                         (sala.x + 208, sala.y + 124), 2)
+        pygame.draw.circle(pantalla, AMARILLO, (sala.x + 87, sala.y + 124), 3)
+    elif nombre == "ESCLUSA AUXILIAR":
+        compuerta = pygame.Rect(sala.x + 86, sala.y + 52, 94, 78)
+        pygame.draw.rect(pantalla, (12, 23, 37), compuerta, border_radius=12)
+        pygame.draw.rect(pantalla, (75, 103, 126), compuerta, 2, border_radius=12)
+        pygame.draw.circle(pantalla, (22, 40, 58), compuerta.center, 30)
+        pygame.draw.circle(pantalla, color, compuerta.center, 26, 2)
+        pygame.draw.circle(pantalla, (83, 115, 137), compuerta.center, 18, 1)
+        pygame.draw.line(pantalla, color, (compuerta.centerx, compuerta.y + 9),
+                         (compuerta.centerx, compuerta.bottom - 9), 2)
+        pygame.draw.line(pantalla, color, (compuerta.centerx - 12, compuerta.centery),
+                         (compuerta.centerx + 12, compuerta.centery), 2)
+        for y in (sala.y + 68, sala.y + 96):
+            pygame.draw.circle(pantalla, (13, 26, 40), (sala.x + 192, y), 10)
+            pygame.draw.circle(pantalla, AZUL if y < sala.y + 90 else VERDE,
+                               (sala.x + 192, y), 8, 1)
+            pygame.draw.line(pantalla, BLANCO, (sala.x + 192, y),
+                             (sala.x + 196, y - 4), 1)
+        pygame.draw.rect(pantalla, AMARILLO, (sala.x + 101, sala.y + 132, 64, 3))
+    elif nombre == "ANTENAS":
+        centro = (sala.x + 143, sala.y + 93)
+        plato = pygame.Rect(centro[0] - 46, centro[1] - 23, 92, 45)
+        pygame.draw.ellipse(pantalla, (18, 33, 49), plato)
+        pygame.draw.arc(pantalla, color, plato, 0.1, math.pi - 0.1, 3)
+        pygame.draw.line(pantalla, (134, 155, 174), (centro[0], centro[1] + 8),
+                         (centro[0] + 13, sala.y + 132), 3)
+        pygame.draw.line(pantalla, (134, 155, 174), (centro[0] - 18, sala.y + 132),
+                         (centro[0] + 30, sala.y + 132), 2)
+        pygame.draw.circle(pantalla, AMARILLO, (centro[0], centro[1] - 2), 4)
+        for radio in (17, 26, 35):
+            fase = 0.25 + 0.12 * math.sin(tiempo * 2 + radio)
+            pygame.draw.arc(pantalla, color, (centro[0] - radio, centro[1] - radio - 17,
+                                               radio * 2, radio * 2),
+                            math.pi + fase, math.tau - fase, 1)
+        pygame.draw.rect(pantalla, (17, 33, 48),
+                         (sala.x + 64, sala.y + 109, 43, 22), border_radius=4)
+        pygame.draw.rect(pantalla, color, (sala.x + 64, sala.y + 109, 43, 22), 1, border_radius=4)
+        for i in range(3):
+            pygame.draw.circle(pantalla, VERDE if i == 0 else APAGADO,
+                               (sala.x + 74 + i * 12, sala.y + 120), 2)
+    elif nombre == "LABORATORIO":
+        mesa = pygame.Rect(sala.x + 61, sala.y + 76, 105, 10)
+        pygame.draw.rect(pantalla, (37, 55, 69), mesa, border_radius=3)
+        pygame.draw.rect(pantalla, color, mesa, 1, border_radius=3)
+        pygame.draw.line(pantalla, (93, 114, 131), (mesa.x + 8, mesa.bottom),
+                         (mesa.x + 8, mesa.bottom + 4), 2)
+        pygame.draw.line(pantalla, (93, 114, 131), (mesa.right - 8, mesa.bottom),
+                         (mesa.right - 8, mesa.bottom + 4), 2)
+        for indice, x in enumerate((sala.x + 77, sala.x + 111, sala.x + 142)):
+            matraz = [(x - 5, sala.y + 57), (x - 3, sala.y + 69),
+                      (x - 8, sala.y + 75), (x + 8, sala.y + 75),
+                      (x + 3, sala.y + 69), (x + 5, sala.y + 57)]
+            pygame.draw.lines(pantalla, (158, 196, 209), False, matraz, 1)
+            pygame.draw.line(pantalla, color, (x - 5, sala.y + 70),
+                             (x + 5, sala.y + 70), 2)
+            pygame.draw.circle(pantalla, AMARILLO if indice == 1 else color,
+                               (x, sala.y + 73), 2)
+        pygame.draw.line(pantalla, (141, 162, 175), (sala.x + 72, sala.y + 66),
+                         (sala.x + 84, sala.y + 54), 2)
+        pygame.draw.circle(pantalla, color, (sala.x + 85, sala.y + 53), 4, 1)
+    elif nombre == "CONTROL TERMICO":
+        radiador = pygame.Rect(sala.x + 61, sala.y + 63, 103, 28)
+        pygame.draw.rect(pantalla, (18, 34, 49), radiador, border_radius=4)
+        pygame.draw.rect(pantalla, color, radiador, 1, border_radius=4)
+        pygame.draw.line(pantalla, (93, 111, 126), (radiador.x + 5, radiador.bottom - 5),
+                         (radiador.right - 5, radiador.bottom - 5), 2)
+        for i in range(7):
+            x = radiador.x + 9 + i * 13
+            calor = 0.5 + 0.5 * math.sin(tiempo * 2 + i * 0.7)
+            pygame.draw.line(pantalla, mezclar((78, 91, 105), color, calor),
+                             (x, radiador.y + 5), (x, radiador.bottom - 7), 2)
+        pygame.draw.line(pantalla, (100, 123, 139), (sala.x + 76, sala.y + 95),
+                         (sala.x + 76, sala.y + 105), 2)
+        pygame.draw.rect(pantalla, (13, 26, 40), (sala.x + 61, sala.y + 105, 43, 25), border_radius=5)
+        pygame.draw.rect(pantalla, color, (sala.x + 61, sala.y + 105, 43, 25), 1, border_radius=5)
+        pygame.draw.circle(pantalla, (12, 25, 39), (sala.x + 82, sala.y + 117), 8)
+        pygame.draw.arc(pantalla, ROJO_CLARO, (sala.x + 74, sala.y + 109, 16, 16),
+                        math.pi, math.tau, 1)
+        pygame.draw.line(pantalla, BLANCO, (sala.x + 82, sala.y + 117),
+                         (sala.x + 87, sala.y + 112), 1)
+    elif nombre == "ALMACEN":
+        for dx, dy, tono in ((59, 51, color), (121, 51, AZUL), (59, 91, AMARILLO), (121, 91, color)):
+            caja = pygame.Rect(sala.x + dx, sala.y + dy, 48, 34)
+            pygame.draw.rect(pantalla, (20, 35, 49), caja, border_radius=4)
+            pygame.draw.rect(pantalla, mezclar((53, 71, 86), tono, 0.45), caja, 2, border_radius=4)
+            pygame.draw.line(pantalla, tono, (caja.x + 5, caja.y + 8),
+                             (caja.right - 5, caja.y + 8), 1)
+            pygame.draw.line(pantalla, (69, 88, 103), (caja.centerx, caja.y + 9),
+                             (caja.centerx, caja.bottom - 4), 1)
+            pygame.draw.circle(pantalla, tono, (caja.right - 6, caja.bottom - 6), 2)
+    elif nombre == "TALLER":
+        panel_herramientas = pygame.Rect(sala.x + 62, sala.y + 48, 121, 27)
+        pygame.draw.rect(pantalla, (19, 34, 49), panel_herramientas, border_radius=4)
+        pygame.draw.rect(pantalla, (76, 99, 119), panel_herramientas, 1, border_radius=4)
+        for i in range(5):
+            x = panel_herramientas.x + 14 + i * 22
+            pygame.draw.circle(pantalla, AMARILLO if i == 2 else color, (x, panel_herramientas.y + 7), 2)
+            pygame.draw.line(pantalla, (153, 169, 181), (x, panel_herramientas.y + 10),
+                             (x + (3 if i % 2 else -3), panel_herramientas.bottom - 4), 2)
+        mesa = pygame.Rect(sala.x + 59, sala.y + 86, 128, 12)
+        pygame.draw.rect(pantalla, (44, 59, 71), mesa, border_radius=3)
+        pygame.draw.rect(pantalla, color, mesa, 1, border_radius=3)
+        for x in (mesa.x + 12, mesa.right - 12):
+            pygame.draw.line(pantalla, (96, 116, 131), (x, mesa.bottom),
+                             (x, mesa.bottom + 18), 3)
+        pygame.draw.rect(pantalla, (19, 33, 47), (sala.x + 80, sala.y + 77, 42, 9), border_radius=2)
+        pygame.draw.circle(pantalla, VERDE, (sala.x + 144, sala.y + 82), 3)
 
 
 def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
