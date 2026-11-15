@@ -207,7 +207,7 @@ misiones = [
 
 mision_actual = 0
 progreso_interaccion = 0.0
-tiempo_total = 20.0
+tiempo_total = 100.0
 
 jugadores = []
 controles = [
@@ -227,7 +227,7 @@ def crear_jugadores(total):
     jugadores.clear()
     mision_actual = 0
     progreso_interaccion = 0.0
-    tiempo_total = 20.0
+    tiempo_total = 100.0
 
     posiciones = [(105,530), (153,530), (201,530), (249,530)]
     for i in range(total):
@@ -270,8 +270,10 @@ def actualizar_interaccion(tecla_activa, dt):
     if progreso_interaccion >= objetivo["duracion"]:
         mision_actual += 1
         progreso_interaccion = 0.0
+        tiempo_total += 5  # suma 5 segundos al temporizador al cumplir misión
         if mision_actual >= len(misiones):
             estado = "final"
+
 
 def dibujar_paredes():
     for zona in ZONAS:
@@ -515,3 +517,4 @@ while True:
         dibujar_fallo()
 
     presentar_pantalla()
+
