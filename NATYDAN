@@ -21,16 +21,15 @@ from datetime import datetime
 from pathlib import Path
 import pygame
 
+# Inicializa Pygame y su mezclador antes de crear ventanas o cargar sonidos.
 pygame.init()
 pygame.mixer.init()
 
 
-# MUSICA DE FONDO
+# Música y efectos de sonido usados durante las distintas pantallas.
 pygame.mixer.music.load(r"alarm.mp3")
 pygame.mixer.music.set_volume(0.2)
-# BUCLE INFINITO
 pygame.mixer.music.play(-1)
-# ESTALLIDO
 sonido_inicio = pygame.mixer.Sound(r"inicio.mp3")
 sonido_inicio.set_volume(0.7)
 
@@ -52,7 +51,7 @@ pygame.display.set_caption("Apollo 13")
 clock = pygame.time.Clock()
 
 # Ajustes de dificultad (puedes tocarlos) 
-DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": 0.29}   # % por segundo
+DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": -0.29}   # % por segundo
 RECUPERA = 22.0        # % que recupera cada misión completada
 PENAL = 6.0            # % que se pierde por cada respuesta incorrecta
 EVENTO_MIN, EVENTO_MAX = 28.0, 50.0   # segundos entre incidentes aleatorios
@@ -67,6 +66,7 @@ flash_rojo = 0.0
 
 
 def cambiar_modo_pantalla():
+    """Alterna entre pantalla completa y ventana redimensionable."""
     global ventana, pantalla_completa
     pantalla_completa = not pantalla_completa
     if pantalla_completa:
@@ -76,6 +76,7 @@ def cambiar_modo_pantalla():
 
 
 def _vista():
+    """Calcula escala y márgenes para ajustar la resolución lógica a la ventana."""
     ancho_v, alto_v = ventana.get_size()
     escala = min(ancho_v / ANCHO, alto_v / ALTO)
     w = max(1, round(ANCHO * escala))
@@ -84,11 +85,13 @@ def _vista():
 
 
 def convertir_mouse(posicion):
+    """Convierte una posición de pantalla real a las coordenadas del juego."""
     escala, _, _, ox, oy = _vista()
     return round((posicion[0] - ox) / escala), round((posicion[1] - oy) / escala)
 
 
 def presentar_pantalla():
+    """Escala y presenta el lienzo lógico, aplicando sacudida si hay un impacto."""
     _, w, h, ox, oy = _vista()
     ventana.fill((0, 0, 0))
     dx = dy = 0
@@ -144,16 +147,19 @@ titulo = pygame.font.SysFont("arial", 64, True)
 
 
 def mezclar(c1, c2, t):
+    """Interpola dos colores RGB con un factor limitado al intervalo 0..1."""
     t = max(0.0, min(1.0, t))
     return tuple(int(a + (b - a) * t) for a, b in zip(c1[:3], c2[:3]))
 
 
 def suave(t):
+    """Aplica una curva de entrada/salida cúbica a un progreso normalizado."""
     t = max(0.0, min(1.0, t))
     return 1 - (1 - t) ** 3
 
 
 def texto(cadena, fnt, color, pos, centro=False, derecha=False, sombra=True):
+    """Dibuja texto alineado en el lienzo y devuelve el rectángulo que ocupa."""
     if not cadena:
         return pygame.Rect(pos[0], pos[1], 0, 0)
     img = fnt.render(cadena, True, color)
@@ -171,6 +177,7 @@ def texto(cadena, fnt, color, pos, centro=False, derecha=False, sombra=True):
 
 
 def partir_texto(cadena, fnt, ancho):
+    """Divide una cadena en líneas que caben dentro del ancho indicado."""
     lineas, actual = [], ""
     for palabra in cadena.split():
         prueba = (actual + " " + palabra).strip()
@@ -185,6 +192,7 @@ def partir_texto(cadena, fnt, ancho):
 
 
 def rect_alpha(destino, color, rect, alpha, radio=8, borde=0):
+    """Dibuja un rectángulo redondeado con transparencia sobre una superficie."""
     s = pygame.Surface(rect.size, pygame.SRCALPHA)
     pygame.draw.rect(s, (color[0], color[1], color[2], max(0, min(255, int(alpha)))),
                      s.get_rect(), borde, border_radius=radio)
@@ -192,16 +200,18 @@ def rect_alpha(destino, color, rect, alpha, radio=8, borde=0):
 
 
 def fmt_met(seg):
+    """Formatea segundos como una hora MET de tres dígitos (HHH:MM:SS)."""
     seg = int(seg)
     return f"{seg // 3600:03d}:{(seg % 3600) // 60:02d}:{seg % 60:02d}"
 
 
-#partículas 
+# Partículas decorativas: cada una conserva posición, velocidad, color y vida útil.
 
 particulas = []
 
 
 def emitir(x, y, color, n=24, vel=180, vida=0.9, r=3, grav=0.0):
+    """Añade partículas aleatorias alrededor de un punto."""
     for _ in range(n):
         a = random.random() * math.tau
         v = random.uniform(0.3, 1.0) * vel
@@ -211,6 +221,7 @@ def emitir(x, y, color, n=24, vel=180, vida=0.9, r=3, grav=0.0):
 
 
 def actualizar_particulas(dt):
+    """Avanza las partículas por el tiempo transcurrido y elimina las expiradas."""
     for p in particulas:
         p["t"] += dt
         p["x"] += p["vx"] * dt
@@ -221,6 +232,7 @@ def actualizar_particulas(dt):
 
 
 def dibujar_particulas():
+    """Dibuja las partículas con color y tamaño atenuados según su vida restante."""
     for p in particulas:
         k = 1 - p["t"] / p["vida"]
         pygame.draw.circle(pantalla, mezclar((6, 12, 24), p["c"], k), (int(p["x"]), int(p["y"])),
@@ -316,10 +328,12 @@ GROSOR_PARED = 6
 
 
 def punto_caminable(px, py):
+    """Indica si un punto pertenece a una sala, pasillo o puerta transitable."""
     return any(z.collidepoint(px, py) for z in ZONAS)
 
 
 def hitbox_valida(caja):
+    """Comprueba que las cuatro esquinas de la hitbox estén en suelo y sin muros."""
     return (not any(muro.colliderect(caja) for muro in MUROS_LABERINTO)
             and punto_caminable(caja.left, caja.top)
             and punto_caminable(caja.right - 1, caja.top)
@@ -329,7 +343,10 @@ def hitbox_valida(caja):
 # JUGADOR
 
 class Jugador:
+    """Representa a un tripulante, su movimiento, colisiones y sprite animado."""
+
     def __init__(self, x, y, color, nombre):
+        """Crea un jugador en la posición inicial con identidad visual y velocidad."""
         self.x = x
         self.y = y
         self.color = color
@@ -341,12 +358,15 @@ class Jugador:
         self.polvo = 0.0
 
     def hitbox(self, x, y):
+        """Devuelve la caja de colisión reducida situada en la parte inferior."""
         return pygame.Rect(int(x) + 5, int(y) + 23, 18, 10)
 
     def pies(self):
+        """Devuelve el punto del suelo usado para comprobar salas y consolas."""
         return self.x + 14, self.y + 28
 
     def mover(self, teclas, ctrl, dt):
+        """Aplica controles con velocidad independiente de FPS y respeta los muros."""
         dx = dy = 0.0
         if teclas[ctrl[0]]:
             dy -= 1
@@ -376,6 +396,7 @@ class Jugador:
                 self.polvo = 0.1
 
     def dibujar(self, resaltado=False):
+        """Renderiza el traje espacial y la etiqueta del tripulante."""
         y = self.rect.y
         cx = self.rect.centerx
         bob = math.sin(self.fase) * (1.3 if self.moviendo else 0.8)
@@ -383,13 +404,19 @@ class Jugador:
         escala_sprite = 6
         sprite = pygame.Surface((self.rect.width * escala_sprite, self.rect.height * escala_sprite),
                                 pygame.SRCALPHA)
+
         def caja(color, rect, radio=0):
+            """Dibuja una pieza rectangular en las coordenadas del sprite ampliado."""
             pygame.draw.rect(sprite, color, tuple(round(v * escala_sprite) for v in rect),
                              border_radius=radio * escala_sprite)
+
         def linea(color, inicio, fin, ancho):
+            """Dibuja una línea del traje con grosor ajustado a la escala interna."""
             pygame.draw.line(sprite, color, tuple(round(v * escala_sprite) for v in inicio),
                              tuple(round(v * escala_sprite) for v in fin), max(1, ancho * escala_sprite))
+
         def ovalo(color, rect):
+            """Dibuja una elipse del traje en las coordenadas del sprite ampliado."""
             pygame.draw.ellipse(sprite, color, tuple(round(v * escala_sprite) for v in rect))
 
         # Mochila, botas y brazos quedan bajo el traje para conservar una silueta suave.
@@ -467,7 +494,8 @@ CAUSA_FALLO = {
     "co2": "Los depuradores de CO2 se saturaron en la cabina.",
 }
 
-# Preguntas de madurez de concepto (CML), por rol: [CML 2, CML 3, CML 4]
+# Banco de preguntas sobre madurez de concepto, organizado por rol.
+# Cada rol contiene tres grupos, uno para cada nivel CML 2, CML 3 y CML 4.
 CML_SETS = {'Director': [[('En CML 2 la idea se cuestiona desde el punto de vista…',
                 'Científico, técnico y programático',
                 ['Únicamente técnico', 'Únicamente de costo y calendario']),
@@ -595,6 +623,8 @@ CML_SETS = {'Director': [[('En CML 2 la idea se cuestiona desde el punto de vist
 
 # Cada misión sigue un momento del vuelo real. "met" = hora de vuelo en segundos;
 # aprox=True cuando el artículo no da la hora exacta.
+# El campo "apollo" contiene preguntas históricas; "recurso" identifica el sistema
+# que se recupera al completar la misión y se penaliza si hay respuestas erróneas.
 H = 3600
 misiones = [
     {"rol": "Director", "sala": "COMUNICACIONES", "met": 55 * H + 55 * 60 + 4, "aprox": False, "recurso": "energia",
@@ -759,6 +789,7 @@ misiones = [
 
 # ESTADO DE PARTIDA
 
+# Variables globales del estado de juego, interfaz, temporizadores y puntuación.
 estado = "menu"
 tiempo_pausa = 0.0
 # El MET avanza entre eventos históricos; no representa horas de vuelo en tiempo real.
@@ -768,7 +799,7 @@ formulario = None
 cache_forms = {}
 causa_fallo = "energia"
 
-recursos = {"energia": 100.0, "oxigeno": 100.0, "co2": 100.0}
+recursos = {"energia": 100.0, "oxigeno": 100.0, "co2": 0.0}
 recursos_vis = dict(recursos)
 tiempo_juego = 0.0
 puntuacion = 0
@@ -787,12 +818,14 @@ alarmas_urgencia_multijugador = set()
 
 EVENTOS = [
     ("Cortocircuito en la batería 2 de la etapa de descenso", "energia", 7),
-    ("Condensación en la cabina: los cartuchos de LiOH pierden eficacia", "co2", 7),
+    ("Condensación en la cabina: los cartuchos de LiOH pierden eficacia", "co2", -7),
     ("Se libera gas al espacio: cae la presión de oxígeno", "oxigeno", 7),
     ("Interferencia con la frecuencia de la etapa S-IVB", "energia", 5),
     ("Oscilación por liberación de gases del Módulo de Servicio", "oxigeno", 5),
 ]
 
+# Cada jugador tiene su propia combinación de teclas; aceptar y cerrar también
+# usan una tecla distinta para que puedan jugar varias personas en el mismo teclado.
 jugadores = []
 controles = [
     [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d],
@@ -820,10 +853,12 @@ MOTAS_CORREDOR = [
 
 
 def fmt_puntos(valor):
+    """Muestra una puntuación entera usando puntos como separadores de miles."""
     return f"{int(valor):,}".replace(",", ".")
 
 
 def cargar_puntuaciones():
+    """Carga y valida el archivo local de récords antes de mostrarlos."""
     global error_puntuaciones
     try:
         datos = json.loads(ARCHIVO_PUNTUACIONES.read_text(encoding="utf-8"))
@@ -856,6 +891,7 @@ def cargar_puntuaciones():
 
 
 def guardar_puntuaciones():
+    """Guarda los récords mediante un archivo temporal para evitar escrituras parciales."""
     global error_puntuaciones
     temporal = ARCHIVO_PUNTUACIONES.with_name(ARCHIVO_PUNTUACIONES.name + ".tmp")
     try:
@@ -869,6 +905,7 @@ def guardar_puntuaciones():
 
 
 def registrar_puntuacion(victoria):
+    """Añade el resultado actual, conserva los mejores puestos y devuelve su rango."""
     registro = {
         "puntos": puntuacion,
         "misiones": mision_actual,
@@ -890,6 +927,8 @@ cargar_puntuaciones()
 
 def asignar_misiones(total):
     """Cada jugador recibe exactamente len(misiones)/total misiones."""
+    # Primero se asignan las misiones al rol coincidente; las restantes se reparten
+    # según afinidades, respetando el mismo cupo para cada participante.
     presentes = roles[:total]
     cupo = len(misiones) // total
     resultado = [None] * len(misiones)
@@ -909,6 +948,7 @@ def asignar_misiones(total):
 
 
 def crear_jugadores(total):
+    """Reinicia la partida y crea la tripulación y cámaras según el número elegido."""
     global mision_actual, asignacion, formulario, t_mision, met_vis, proximo_evento, tiempo_juego
     global puntuacion, alarma_urgencia, puesto_puntuacion
     jugadores.clear()
@@ -949,15 +989,18 @@ def crear_jugadores(total):
 
 
 def cml_actual():
+    """Calcula el nivel CML actual: aumenta cada cuatro misiones, hasta CML 4."""
     return min(4, 1 + mision_actual // 4)
 
 
 def responsable_actual():
+    """Devuelve el jugador asignado a la primera misión todavía pendiente."""
     indice = next((i for i in range(len(misiones)) if i not in misiones_completadas), None)
     return next((j for j in jugadores if indice is not None and j.nombre == asignacion[indice]), None)
 
 
 def mision_para_jugador(jugador):
+    """Busca la siguiente misión pendiente asignada a un jugador concreto."""
     if jugador is None:
         return None
     return next((i for i, responsable in enumerate(asignacion)
@@ -965,6 +1008,7 @@ def mision_para_jugador(jugador):
 
 
 def actualizar_progreso_misiones():
+    """Actualiza el índice global de progreso y el MET del siguiente hito."""
     sonido_mision.play()
     global mision_actual, met_vis
     mision_actual = len(misiones_completadas)
@@ -973,6 +1017,7 @@ def actualizar_progreso_misiones():
     
 
 def vistas_multijugador():
+    """Distribuye el área de juego en vistas iguales, una por cada jugador."""
     total = len(jugadores)
     area = AREA_VISTA_MULTIJUGADOR
     if total == 2:
@@ -992,10 +1037,12 @@ def vistas_multijugador():
 
 
 def zoom_multijugador(total):
+    """Elige el nivel de zoom de cámara apropiado al número de vistas."""
     return {2: 1.1, 3: 0.85}.get(total, 0.95)
 
 
 def _posicion_camara(jugador, vista=MAPA_VISTA, zoom=ZOOM_MAPA):
+    """Centra la cámara en un jugador y limita su posición a los bordes del mapa."""
     x_min = MAPA.left * zoom
     x_max = MAPA.right * zoom - vista.width
     y_min = MAPA.top * zoom
@@ -1006,6 +1053,7 @@ def _posicion_camara(jugador, vista=MAPA_VISTA, zoom=ZOOM_MAPA):
 
 
 def actualizar_camara_mapa(dt):
+    """Sigue suavemente al tripulante responsable en la partida individual."""
     jugador = responsable_actual()
     if jugador is None:
         return
@@ -1016,6 +1064,7 @@ def actualizar_camara_mapa(dt):
 
 
 def actualizar_camaras_multijugador(dt):
+    """Actualiza una cámara suavizada para cada jugador y su zona de pantalla."""
     global camara_multijugador
     vistas = vistas_multijugador()
     zoom = zoom_multijugador(len(jugadores))
@@ -1031,6 +1080,7 @@ def actualizar_camaras_multijugador(dt):
 
 
 def en_sector(jugador=None):
+    """Comprueba si el jugador está dentro de la sala de su misión pendiente."""
     if jugador is None:
         jugador = responsable_actual()
     indice = mision_para_jugador(jugador)
@@ -1040,11 +1090,13 @@ def en_sector(jugador=None):
 
 
 def consolas_auxiliares(sala):
+    """Construye las cuatro zonas de consola de una sala grande."""
     return [pygame.Rect(sala.x + 76 + modulo * 72, sala.y + 75, 56, 42)
             for modulo in range(4)]
 
 
 def en_consola_mision(jugador=None):
+    """Comprueba si el jugador puede interactuar con una consola de su misión."""
     if jugador is None:
         jugador = responsable_actual()
     indice = mision_para_jugador(jugador)
@@ -1064,11 +1116,13 @@ def en_consola_mision(jugador=None):
 # ====================
 
 def lanzar_alerta(cadena, color, dur=4.0):
+    """Añade una alerta temporal y limita la lista a las tres más recientes."""
     alertas.append({"texto": cadena, "color": color, "t": 0.0, "dur": dur})
     del alertas[:-3]
 
 
 def lanzar_evento():
+    """Selecciona un incidente aleatorio, aplica su efecto y activa señales visuales."""
     global sacudida, flash_rojo
     cadena, rec, dano = random.choice(EVENTOS)
     recursos[rec] = max(0.0, recursos[rec] - dano)
@@ -1078,6 +1132,7 @@ def lanzar_evento():
 
 
 def actualizar_efectos(dt):
+    """Reduce los temporizadores de efectos y actualiza alertas y partículas."""
     global sacudida, flash_rojo
     sacudida = max(0.0, sacudida - dt)
     flash_rojo = max(0.0, flash_rojo - dt)
@@ -1088,6 +1143,7 @@ def actualizar_efectos(dt):
 
 
 def actualizar_recursos(dt):
+    """Avanza el tiempo, drena consumibles, lanza incidentes y detecta el fracaso."""
     global estado, formulario, proximo_evento, t_mision, met_vis, tiempo_juego, causa_fallo
     global alarma_urgencia, puesto_puntuacion
     tiempo_juego += dt
@@ -1113,6 +1169,8 @@ def actualizar_recursos(dt):
             alarma_urgencia = True
             lanzar_alerta("ALERTA: venció la ventana de respuesta. Se perdió el bono de rapidez.",
                           ROJO_CLARO, 6.0)
+    # DRENAJE incluye signo: valores positivos consumen el recurso y el CO2 negativo
+    # hace que aumente su carga hasta que una misión de soporte vital lo reduzca.
     for k in recursos:
         recursos[k] = max(0.0, recursos[k] - DRENAJE[k] * dt)
         recursos_vis[k] += (recursos[k] - recursos_vis[k]) * min(1.0, dt * 6)
@@ -1160,6 +1218,7 @@ def sortear_preguntas(idx):
 
 
 def crear_formulario_mision(indice):
+    """Crea el estado visual y de respuesta del formulario para una misión."""
     if indice not in cache_forms:
         cache_forms[indice] = sortear_preguntas(indice)
     nuevo = {"idx": indice, "campos": cache_forms[indice], "foco": 0, "mensaje": "",
@@ -1173,6 +1232,7 @@ def crear_formulario_mision(indice):
 
 
 def abrir_formulario():
+    """Abre el formulario individual si el jugador está junto a su consola."""
     global formulario, estado
     if not en_consola_mision():
         return
@@ -1182,6 +1242,7 @@ def abrir_formulario():
 
 
 def abrir_formulario_multijugador(jugador):
+    """Abre el formulario independiente que corresponde a un jugador activo."""
     if jugador.nombre in formularios_multijugador:
         return
     indice = mision_para_jugador(jugador)
@@ -1191,12 +1252,14 @@ def abrir_formulario_multijugador(jugador):
 
 
 def cerrar_formulario():
+    """Cierra el formulario individual y vuelve a la pantalla de juego."""
     global formulario, estado
     formulario = None
     estado = "juego"
 
 
 def elegir(campo, opcion, avanzar=False, f=None):
+    """Registra una opción en un campo y actualiza su foco y animación."""
     f = formulario if f is None else f
     c = f["campos"][campo]
     if c["bloqueado"] or opcion >= len(c["opciones"]):
@@ -1209,6 +1272,7 @@ def elegir(campo, opcion, avanzar=False, f=None):
 
 
 def enviar_formulario(f=None, jugador=None):
+    """Valida las respuestas; penaliza errores o inicia la animación de éxito."""
     global sacudida
     f = formulario if f is None else f
     campos = f["campos"]
@@ -1246,6 +1310,7 @@ def enviar_formulario(f=None, jugador=None):
 
 
 def finalizar_exito():
+    """Aplica las recompensas individuales y avanza o termina la partida."""
     global mision_actual, estado, formulario, t_mision, met_vis
     global puntuacion, alarma_urgencia, puesto_puntuacion
     m = misiones[mision_actual]
@@ -1277,6 +1342,7 @@ def finalizar_exito():
 
 
 def finalizar_exito_multijugador(nombre_jugador):
+    """Aplica la recompensa de un jugador y actualiza el progreso compartido."""
     global estado, puntuacion, puesto_puntuacion
     f = formularios_multijugador.pop(nombre_jugador, None)
     if f is None:
@@ -1309,6 +1375,7 @@ def finalizar_exito_multijugador(nombre_jugador):
 
 
 def actualizar_formulario(dt):
+    """Avanza la animación de éxito individual y finaliza al terminar."""
     f = formulario
     if f and f["exito"] is not None:
         f["exito"] += dt
@@ -1317,6 +1384,7 @@ def actualizar_formulario(dt):
 
 
 def actualizar_formularios_multijugador(dt):
+    """Actualiza las animaciones de éxito de todos los formularios simultáneos."""
     for nombre, f in list(formularios_multijugador.items()):
         if f["exito"] is not None:
             f["exito"] += dt
@@ -1325,6 +1393,7 @@ def actualizar_formularios_multijugador(dt):
 
 
 def manejar_tecla_multijugador(tecla):
+    """Enruta una tecla al formulario o consola del jugador que corresponda."""
     for indice, jugador in enumerate(jugadores):
         f = formularios_multijugador.get(jugador.nombre)
         if f:
@@ -1364,6 +1433,7 @@ def manejar_tecla_multijugador(tecla):
 # ====================
 
 def dibujar_fondo(tiempo):
+    """Pinta el fondo espacial animado con estrellas y meteoros."""
     pantalla.fill(FONDO)
     for x, y, r, f in ESTRELLAS:
         brillo = 90 + int(100 * (0.5 + 0.5 * math.sin(tiempo * 1.6 + f)))
@@ -1378,6 +1448,7 @@ def dibujar_fondo(tiempo):
 
 
 def dibujar_paredes():
+    """Dibuja los suelos, paredes y obstáculos del interior de la nave."""
     for zona in ZONAS:
         pygame.draw.rect(pantalla, PARED, zona.inflate(GROSOR_PARED * 2, GROSOR_PARED * 2), border_radius=10)
     for zona in ZONAS:
@@ -1390,6 +1461,7 @@ def dibujar_paredes():
 
 
 def dibujar_icono_sala(nombre, centro, color):
+    """Dibuja el pictograma asociado al tipo de sala indicado."""
     cx, cy = centro
     if nombre == "ENERGIA":
         pygame.draw.polygon(pantalla, color, [(cx + 4, cy - 19), (cx - 11, cy + 2), (cx - 1, cy + 2),
@@ -1465,6 +1537,7 @@ def dibujar_icono_sala(nombre, centro, color):
 
 
 def dibujar_equipo_sala(nombre, sala, color, tiempo):
+    """Dibuja una consola de sala con indicadores animados según su función."""
     equipo = pygame.Rect(sala.right - 76, sala.bottom - 49, 62, 38)
     pygame.draw.rect(pantalla, (10, 22, 38), equipo, border_radius=5)
     pygame.draw.rect(pantalla, (44, 67, 87), equipo, 1, border_radius=5)
@@ -1573,6 +1646,7 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
 
 
 def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
+    """Representa un módulo técnico decorativo según el tipo de equipo."""
     pygame.draw.rect(pantalla, (17, 31, 47), rect, border_radius=12)
     pygame.draw.rect(pantalla, (74, 99, 123), rect, 2, border_radius=12)
     pygame.draw.rect(pantalla, (9, 20, 34), rect.inflate(-8, -8), border_radius=9)
@@ -1612,6 +1686,7 @@ def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
 
 
 def dibujar_casco_anexo():
+    """Traza el contorno exterior de la nave y los paneles de su fuselaje."""
     ala_superior = [(2030, 190), (2310, 55), (2260, 325), (2160, 410)]
     ala_inferior = [(2030, 1190), (2310, 1325), (2260, 1055), (2160, 970)]
     for ala in (ala_superior, ala_inferior):
@@ -1643,6 +1718,7 @@ def dibujar_casco_anexo():
 
 
 def dibujar_nave(tiempo):
+    """Compone el mapa completo: casco, pasillos, salas, consolas y destinos."""
     dibujar_casco_anexo()
     dibujar_paredes()
     for x, semilla, velocidad, fase in MOTAS_CORREDOR:
@@ -1812,6 +1888,7 @@ def dibujar_nave(tiempo):
 
 
 def actualizar_capa_mapa(tiempo):
+    """Renderiza la nave y los jugadores en la superficie reutilizable del mapa."""
     global pantalla
     capa_mapa.fill((0, 0, 0, 0))
     pantalla_anterior = pantalla
@@ -1829,6 +1906,7 @@ def actualizar_capa_mapa(tiempo):
 
 
 def dibujar_region_mapa(camara, zoom, vista):
+    """Recorta, escala y dibuja en pantalla una región de la superficie del mapa."""
     ancho_recorte = min(MUNDO_ANCHO, math.ceil(vista.width / zoom) + 2)
     alto_recorte = min(MUNDO_ALTO, math.ceil(vista.height / zoom) + 2)
     recorte_x = max(0, min(MUNDO_ANCHO - ancho_recorte, int(camara[0] / zoom)))
@@ -1854,11 +1932,13 @@ def dibujar_region_mapa(camara, zoom, vista):
 
 
 def dibujar_mapa_vista(tiempo):
+    """Dibuja el mapa de cámara única usado en modo de un jugador."""
     actualizar_capa_mapa(tiempo)
     dibujar_region_mapa(camara_mapa, ZOOM_MAPA, MAPA_VISTA)
 
 
 def dibujar_mapa_multijugador(tiempo):
+    """Dibuja una región de mapa y una etiqueta de destino por jugador."""
     actualizar_capa_mapa(tiempo)
     vistas = vistas_multijugador()
     zoom = zoom_multijugador(len(jugadores))
@@ -1875,6 +1955,7 @@ def dibujar_mapa_multijugador(tiempo):
 
 
 def dibujar_formularios_multijugador():
+    """Superpone los formularios activos dentro de las vistas de sus jugadores."""
     for indice, (jugador, vista) in enumerate(zip(jugadores, vistas_multijugador())):
         f = formularios_multijugador.get(jugador.nombre)
         if f is None:
@@ -1941,6 +2022,7 @@ def dibujar_formularios_multijugador():
 
 
 def dibujar_mapa_general(tiempo):
+    """Muestra el plano completo de la nave y marca jugadores y salas objetivo."""
     rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 205, 0)
     panel = pygame.Rect(42, 34, ANCHO - 84, ALTO - 68)
     rect_alpha(pantalla, (8, 18, 33), panel, 250, 18)
@@ -1961,6 +2043,7 @@ def dibujar_mapa_general(tiempo):
     pygame.draw.rect(pantalla, (61, 93, 122), mapa_rect, 1, border_radius=8)
 
     def posicion_mapa(x, y):
+        """Transforma una coordenada del mundo a la escala del plano mostrado."""
         return (mapa_rect.x + round(x * escala), mapa_rect.y + round(y * escala))
 
     if len(jugadores) > 1:
@@ -2022,6 +2105,7 @@ def dibujar_mapa_general(tiempo):
 
 
 def dibujar_recursos():
+    """Dibuja las barras de energía, oxígeno y carga del depurador de CO2."""
     x = 817
     for k in ("energia", "oxigeno", "co2"):
         nombre, col = RECURSOS_INFO[k]
@@ -2037,6 +2121,7 @@ def dibujar_recursos():
 
 
 def dibujar_cabecera():
+    """Dibuja el HUD superior con MET, CML, puntuación y consumibles."""
     paneles = (pygame.Rect(18, 14, 272, 112), pygame.Rect(798, 14, 464, 68))
     for panel in paneles:
         rect_alpha(pantalla, PANEL_BG, panel, 252, 12)
@@ -2062,6 +2147,7 @@ def dibujar_cabecera():
 
 
 def mostrar_mision():
+    """Muestra el resumen de misión individual o el progreso compartido."""
     if len(jugadores) > 1:
         tarjeta = pygame.Rect(302, 14, 478, 112)
         rect_alpha(pantalla, PANEL_BG, tarjeta, 252, 12)
@@ -2134,6 +2220,7 @@ def mostrar_mision():
 
 
 def dibujar_alertas():
+    """Presenta alertas temporales con animación de entrada y salida."""
     y = 132
     for a in alertas:
         entrada = suave(a["t"] / 0.4)
@@ -2151,6 +2238,7 @@ def dibujar_alertas():
 
 
 def dibujar_tripulacion():
+    """Dibuja la barra inferior con roles, controles y progreso por tripulante."""
     resp = (asignacion[mision_actual]
             if len(jugadores) <= 1 and mision_actual < len(misiones) else None)
     responsables_activos = {
@@ -2174,6 +2262,7 @@ def dibujar_tripulacion():
 
 
 def dibujar_flash():
+    """Superpone el destello rojo que señala un incidente."""
     if flash_rojo > 0:
         s = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
         s.fill((255, 40, 40, int(70 * flash_rojo / 0.6)))
@@ -2185,6 +2274,7 @@ def dibujar_flash():
 # ====================
 
 def _alto_campos(campos, ancho, pad, gap):
+    """Estima el alto necesario para dibujar todas las preguntas y opciones."""
     total = 0
     for c in campos:
         total += len(partir_texto(c["pregunta"], fuente_q, ancho - 170)) * 23 + 6
@@ -2195,6 +2285,7 @@ def _alto_campos(campos, ancho, pad, gap):
 
 
 def dibujar_formulario(mouse, dt):
+    """Anima y presenta el formulario individual sobre el juego."""
     global pantalla
     f = formulario
     f["t"] += dt
@@ -2227,6 +2318,7 @@ def dibujar_formulario(mouse, dt):
 
 
 def _contenido_formulario(f, m, color_sala, t, dt, ml):
+    """Dibuja el contenido del formulario y actualiza sus zonas interactivas."""
     campos = f["campos"]
     pygame.draw.rect(pantalla, (*PANEL_BG, 246), (0, 0, PW, PH), border_radius=18)
     pygame.draw.rect(pantalla, BORDE, (0, 0, PW, PH), 1, border_radius=18)
@@ -2417,6 +2509,7 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
 # ====================
 
 def dibujar_menu(mouse, tiempo):
+    """Dibuja el menú inicial, récords y opciones de tamaño de tripulación."""
     dibujar_fondo(tiempo)
     pygame.draw.rect(pantalla, (7, 14, 27), (0, 0, ANCHO, 48))
     pygame.draw.line(pantalla, LINEA, (0, 47), (ANCHO, 47), 1)
@@ -2512,6 +2605,7 @@ def dibujar_menu(mouse, tiempo):
 
 
 def dibujar_resultado(tiempo, exito):
+    """Dibuja el desenlace de victoria o fracaso y el estado del récord."""
     dibujar_fondo(tiempo)
     if exito:
         pygame.draw.circle(pantalla, VERDE, (640, 230), 36, 3)
@@ -2544,6 +2638,7 @@ def dibujar_resultado(tiempo, exito):
 
 
 def dibujar_pausa(mouse, tiempo):
+    """Dibuja el panel de pausa con estado de vuelo y acciones disponibles."""
     velo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
     velo.fill((2, 8, 19, 190))
     pantalla.blit(velo, (0, 0))
@@ -2617,6 +2712,7 @@ def dibujar_pausa(mouse, tiempo):
 
 
 def volver_al_menu_desde_pausa():
+    """Descarta los datos de la tripulación y regresa al menú principal."""
     global estado, formulario
     estado = "menu"
     formulario = None
@@ -2630,12 +2726,17 @@ def volver_al_menu_desde_pausa():
 # ====================
 
 def main():
+    """Ejecuta el bucle principal de eventos, simulación y renderizado."""
     global estado, tiempo_pausa
     while True:
+        # Limita el paso de tiempo para que una pausa del sistema no provoque
+        # saltos grandes en el movimiento, los recursos o las animaciones.
         dt = min(clock.tick(60) / 1000, 0.05)
         tiempo = pygame.time.get_ticks() / 1000
         mouse = convertir_mouse(pygame.mouse.get_pos())
 
+        # La entrada depende de la pantalla actual: menú, juego, mapa, pausa,
+        # formulario o resultado final.
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
@@ -2721,9 +2822,12 @@ def main():
                     jugadores.clear()
                     particulas.clear()
 
+        # El juego se congela en pausa y en el mapa, pero el vuelo continúa
+        # durante el formulario, como indican las reglas de la misión.
         if estado not in ("pausa", "mapa"):
             actualizar_efectos(dt)
 
+        # Actualiza movimiento, consumibles y formularios según el modo actual.
         if estado in ("juego", "formulario"):
             if estado == "juego":
                 teclas = pygame.key.get_pressed()
@@ -2737,6 +2841,8 @@ def main():
             else:
                 actualizar_formulario(dt)
 
+        # Cada estado elige su composición visual; juego y formulario comparten
+        # el mapa/HUD y solo añaden la capa interactiva correspondiente.
         if estado == "menu":
             dibujar_menu(mouse, tiempo)
         elif estado in ("juego", "formulario", "pausa", "mapa"):
@@ -2773,7 +2879,8 @@ def main():
         elif estado == "fallo":
             dibujar_resultado(tiempo, False)
 
-        # tras finalizar_exito / fallo el estado pudo cambiar durante la actualización
+        # El estado puede cambiar durante las actualizaciones de este mismo
+        # fotograma, por ejemplo al completar una misión o agotar un recurso.
         if estado in ("menu", "final", "fallo"):
             dibujar_particulas()
         presentar_pantalla()
