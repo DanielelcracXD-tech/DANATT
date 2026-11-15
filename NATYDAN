@@ -304,16 +304,40 @@ class Jugador:
         bob = int(math.sin(self.fase) * 1.6) if self.moviendo else 0
         swing = int(math.sin(self.fase) * 3) if self.moviendo else 0
         yb = y + bob
-        pygame.draw.ellipse(pantalla, (4, 9, 18), (x + 2, y + 31, 24, 6))
-        pygame.draw.rect(pantalla, (24, 35, 53), (x + 2, yb + 18, 6, 14), border_radius=3)
-        pygame.draw.rect(pantalla, self.color, (x + 6, yb + 17, 17, 16), border_radius=6)
-        pygame.draw.rect(pantalla, BLANCO, (x + 11, yb + 22, 7, 7), border_radius=2)
-        pygame.draw.line(pantalla, (220, 232, 245), (x + 10, y + 32), (x + 8 + swing, y + 36), 3)
-        pygame.draw.line(pantalla, (220, 232, 245), (x + 20, y + 32), (x + 22 - swing, y + 36), 3)
-        pygame.draw.circle(pantalla, (18, 30, 48), (cx, yb + 11), 10)
-        pygame.draw.circle(pantalla, self.color, (cx, yb + 10), 9)
-        pygame.draw.rect(pantalla, (118, 198, 237), (x + 5, yb + 6, 18, 8), border_radius=4)
-        pygame.draw.line(pantalla, (224, 248, 255), (x + 8, yb + 7), (x + 18, yb + 7), 1)
+        escala_sprite = 4
+        sprite = pygame.Surface((self.rect.width * escala_sprite, self.rect.height * escala_sprite),
+                                pygame.SRCALPHA)
+        def caja(color, rect, radio=0):
+            pygame.draw.rect(sprite, color, tuple(v * escala_sprite for v in rect),
+                             border_radius=radio * escala_sprite)
+        def linea(color, inicio, fin, ancho):
+            pygame.draw.line(sprite, color, tuple(v * escala_sprite for v in inicio),
+                             tuple(v * escala_sprite for v in fin), ancho * escala_sprite)
+        def ovalo(color, rect):
+            pygame.draw.ellipse(sprite, color, tuple(v * escala_sprite for v in rect))
+
+        ovalo((4, 9, 18, 150), (2, 31, 24, 5))
+        caja((20, 33, 51), (2, 18, 7, 13), 3)
+        caja((39, 57, 75), (20, 19, 6, 11), 3)
+        linea((31, 47, 64), (22, 21), (22, 28), 1)
+        linea((51, 65, 81), (10, 28), (9 + swing, 33), 4)
+        linea((51, 65, 81), (19, 28), (20 - swing, 33), 4)
+        ovalo((199, 215, 227), (7 + swing, 31, 6, 4))
+        ovalo((199, 215, 227), (18 - swing, 31, 6, 4))
+        linea((40, 58, 76), (8, 22), (4, 26), 4)
+        linea((40, 58, 76), (21, 22), (25, 26), 4)
+        caja((23, 38, 56), (5, 15, 19, 18), 7)
+        caja(self.color, (7, 16, 15, 15), 6)
+        linea(mezclar(self.color, BLANCO, 0.45), (9, 19), (9, 27), 2)
+        caja((27, 45, 62), (11, 22, 7, 6), 2)
+        caja(mezclar(self.color, BLANCO, 0.72), (12, 23, 5, 4), 1)
+        ovalo((16, 29, 47), (5, 2, 18, 18))
+        ovalo(self.color, (6, 3, 16, 16))
+        ovalo((34, 76, 105), (7, 6, 14, 8))
+        linea((165, 219, 239), (9, 7), (18, 7), 1)
+        caja((211, 228, 239), (7, 14, 14, 2), 1)
+        sprite = pygame.transform.smoothscale(sprite, self.rect.size)
+        pantalla.blit(sprite, (x, yb))
         col = self.color if resaltado else mezclar(self.color, BLANCO, 0.35)
         texto(self.nombre, fuente_mini_b if resaltado else fuente_mini, col, (cx, y - 9), centro=True)
         if resaltado:
@@ -1086,6 +1110,7 @@ def dibujar_nave(tiempo):
     ]
     pygame.draw.polygon(pantalla, (10, 20, 34), fuselaje)
     pygame.draw.polygon(pantalla, (54, 82, 108), fuselaje, 3)
+    pygame.draw.aalines(pantalla, (69, 98, 123), True, fuselaje)
     pygame.draw.lines(pantalla, (31, 51, 72), True, [
         (ANCHO // 2, MAPA.y + 18), (1038, 78), (1222, 198), (1222, 602),
         (1127, 642), (153, 642), (58, 602), (58, 198), (242, 78),
@@ -1207,7 +1232,7 @@ def dibujar_mapa_vista(tiempo):
     finally:
         pantalla = pantalla_anterior
 
-    pygame.transform.scale(capa_mapa, capa_mapa_zoom.get_size(), capa_mapa_zoom)
+    pygame.transform.smoothscale(capa_mapa, capa_mapa_zoom.get_size(), capa_mapa_zoom)
     recorte_anterior = pantalla.get_clip()
     pantalla.set_clip(MAPA_VISTA)
     try:
