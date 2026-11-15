@@ -8,10 +8,10 @@ El reloj MET marca el suceso histórico activo y salta al siguiente hito al comp
 cada misión; no intenta reproducir el tiempo real de vuelo.
 
 Dinámica: energía, oxígeno y depuración de CO2 cambian durante el vuelo. La
-tripulación también debe administrar comida y agua, cuidar su salud y usar los
-suministros médicos. Cada misión completada recupera el consumible correspondiente;
-cada respuesta incorrecta lo castiga. Si un sistema crítico se agota o un tripulante
-fallece, la misión fracasa.
+tripulación también debe administrar comida y agua, cuidar su salud, usar los
+suministros médicos y entrenar periódicamente en el gimnasio. Cada misión completada
+recupera el consumible correspondiente; cada respuesta incorrecta lo castiga. Si un
+sistema crítico se agota o un tripulante fallece, la misión fracasa.
 """
 
 import math
@@ -59,6 +59,12 @@ RECUPERA = 22.0        # % que suma la misión al recurso asociado (máximo 100 
 PENAL = 6.0            # % que resta cada respuesta incorrecta al recurso de esa misión
 TASA_HAMBRE = 0.10     # % por segundo
 TASA_SED = 0.14        # % por segundo
+INTERVALO_EJERCICIO = 90.0
+DURACION_EJERCICIO = 5.0
+AVISO_EJERCICIO = 3.0
+DANO_FALTA_EJERCICIO = 0.2
+DRENAJE_OXIGENO_EJERCICIO = 0.04
+ACUMULO_CO2_EJERCICIO = 0.04
 ALIMENTO_POR_TRIPULANTE = 5
 AGUA_POR_TRIPULANTE = 7
 VENDAJES_POR_TRIPULANTE = 2
@@ -373,6 +379,9 @@ class Jugador:
         self.vida = 100.0
         self.hambre = 0.0
         self.sed = 0.0
+        self.tiempo_para_ejercicio = INTERVALO_EJERCICIO
+        self.ejercicio_restante = 0.0
+        self.aviso_ejercicio = False
         self.velocidad = 250
         self.fase = 0.0
         self.moviendo = False
@@ -1339,10 +1348,28 @@ def en_consola_mision(jugador=None):
 
 
 def interactuar_servicios(jugador):
-    """Permite comer o beber a elección del jugador y usar material médico."""
+    """Permite usar la caminadora, comer, beber o usar material médico."""
     if jugador is None:
         return False
     x, y = jugador.pies()
+    if salas["GIMNASIO"].collidepoint(x, y):
+        if jugador.ejercicio_restante > 0:
+            return True
+        ocupante = next((otro for otro in jugadores
+                         if otro is not jugador and otro.ejercicio_restante > 0), None)
+        if ocupante:
+            lanzar_alerta(f"{ocupante.nombre} está usando la caminadora.", AMARILLO, 3.0)
+            return True
+        cinta = pygame.Rect(salas["GIMNASIO"].x + 68, salas["GIMNASIO"].y + 83, 106, 10)
+        jugador.x = cinta.centerx - jugador.rect.width / 2
+        jugador.y = cinta.y + 3 - jugador.rect.height
+        jugador.rect.x = round(jugador.x)
+        jugador.rect.y = round(jugador.y)
+        jugador.ejercicio_restante = DURACION_EJERCICIO
+        jugador.moviendo = True
+        lanzar_alerta(f"{jugador.nombre}: entrenamiento en caminadora iniciado.", AMARILLO, 3.0)
+        return True
+
     if salas["COMEDOR"].collidepoint(x, y):
         usados = []
         faltantes = []
@@ -1424,7 +1451,7 @@ def actualizar_efectos(dt):
 
 
 def actualizar_recursos(dt):
-    """Actualiza sistemas, hambre, sed, salud, incidentes y condiciones de fracaso."""
+    """Actualiza sistemas, ejercicio, necesidades, incidentes y condiciones de fracaso."""
     global estado, formulario, proximo_evento, t_mision, met_vis, tiempo_juego, causa_fallo
     global alarma_urgencia, puesto_puntuacion, tripulante_fallecido
     tiempo_juego += dt
@@ -1450,10 +1477,44 @@ def actualizar_recursos(dt):
             alarma_urgencia = True
             lanzar_alerta("ALERTA: venció la ventana de respuesta. Se perdió el bono de rapidez.",
                           ROJO_CLARO, 6.0)
+    tiempo_ejercicio_activo = 0.0
+    for jugador in jugadores:
+        if jugador.ejercicio_restante > 0:
+            tiempo_activo = min(dt, jugador.ejercicio_restante)
+            tiempo_ejercicio_activo += tiempo_activo
+            jugador.ejercicio_restante = max(0.0, jugador.ejercicio_restante - dt)
+            jugador.fase += tiempo_activo * 14
+            jugador.moviendo = jugador.ejercicio_restante > 0
+            if jugador.ejercicio_restante == 0:
+                jugador.tiempo_para_ejercicio = INTERVALO_EJERCICIO
+                jugador.aviso_ejercicio = False
+                lanzar_alerta(f"{jugador.nombre}: entrenamiento completado.", VERDE, 3.0)
+        else:
+            tiempo_anterior = jugador.tiempo_para_ejercicio
+            jugador.tiempo_para_ejercicio -= dt
+            if (not jugador.aviso_ejercicio and tiempo_anterior > AVISO_EJERCICIO
+                    and jugador.tiempo_para_ejercicio <= AVISO_EJERCICIO):
+                jugador.aviso_ejercicio = True
+                lanzar_alerta(
+                    f"{jugador.nombre}: ve al gimnasio; perderá salud en 3 segundos.",
+                    ROJO_CLARO, 4.0
+                )
+            if jugador.tiempo_para_ejercicio <= 0:
+                tiempo_penalizacion = min(dt, max(0.0, -jugador.tiempo_para_ejercicio))
+                jugador.vida = max(
+                    0.0, jugador.vida - DANO_FALTA_EJERCICIO * tiempo_penalizacion
+                )
+
     # Energía y oxígeno disminuyen; el signo negativo hace que aumente la carga de CO2.
     for k in recursos:
         # Se evita bajar de cero; la barra visible sigue al valor real suavemente.
         recursos[k] = max(0.0, recursos[k] - DRENAJE[k] * dt)
+    if tiempo_ejercicio_activo:
+        recursos["oxigeno"] = max(
+            0.0, recursos["oxigeno"] - DRENAJE_OXIGENO_EJERCICIO * tiempo_ejercicio_activo
+        )
+        recursos["co2"] += ACUMULO_CO2_EJERCICIO * tiempo_ejercicio_activo
+    for k in recursos:
         recursos_vis[k] += (recursos[k] - recursos_vis[k]) * min(1.0, dt * 6)
     for jugador in jugadores:
         jugador.hambre = min(100.0, jugador.hambre + TASA_HAMBRE * dt)
@@ -2052,8 +2113,16 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
         cinta = pygame.Rect(sala.x + 68, sala.y + 83, 106, 10)
         pygame.draw.rect(pantalla, (20, 34, 48), cinta, border_radius=5)
         pygame.draw.rect(pantalla, color, cinta, 1, border_radius=5)
-        pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 10, cinta.y + 4),
-                         (cinta.right - 10, cinta.y + 4), 1)
+        corriendo = any(j.ejercicio_restante > 0 for j in jugadores)
+        if corriendo:
+            desplazamiento = int(tiempo * 35) % 18
+            for base in range(0, cinta.width - 8, 18):
+                x = cinta.x + 4 + (base + desplazamiento) % (cinta.width - 8)
+                pygame.draw.line(pantalla, (110, 132, 149), (x, cinta.y + 2),
+                                 (x, cinta.bottom - 2), 1)
+        else:
+            pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 10, cinta.y + 4),
+                             (cinta.right - 10, cinta.y + 4), 1)
         pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 14, cinta.y),
                          (cinta.x + 27, cinta.y - 22), 2)
         pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 27, cinta.y - 22),
@@ -2334,7 +2403,7 @@ def dibujar_nave(tiempo):
             else:
                 texto(responsable_sala.nombre.upper(), fuente_mini, mezclar(APAGADO, BLANCO, 0.5),
                       (sala.centerx, sala.centery + 6), centro=True)
-        if nombre in ("COMEDOR", "ENFERMERIA"):
+        if nombre in ("COMEDOR", "ENFERMERIA", "GIMNASIO"):
             en_servicio = [i for i, jugador in enumerate(jugadores)
                            if sala.collidepoint(jugador.pies())]
             if en_servicio:
@@ -2342,8 +2411,17 @@ def dibujar_nave(tiempo):
                          if len(jugadores) > 1 else "E")
                 if nombre == "COMEDOR":
                     indicacion = f"[{tecla}] COMER / BEBER"
-                else:
+                elif nombre == "ENFERMERIA":
                     indicacion = f"[{tecla}] ATENCIÓN MÉDICA"
+                else:
+                    ocupante = next((jugador for jugador in jugadores
+                                     if jugador.ejercicio_restante > 0), None)
+                    if ocupante:
+                        dentro = any(jugadores[i] is ocupante for i in en_servicio)
+                        indicacion = (f"{ocupante.nombre.upper()} EN CAMINADORA"
+                                      if dentro else "CAMINADORA OCUPADA")
+                    else:
+                        indicacion = f"[{tecla}] USAR CAMINADORA"
                 texto(indicacion, fuente_micro, AMARILLO,
                       (sala.centerx, sala.bottom - 24), centro=True)
 
@@ -2789,6 +2867,19 @@ def dibujar_tripulacion():
         texto(f"{j.nombre.upper()}  {TECLAS_TEXTO[i]}  {hechas}/{total}",
               fuente_mini, BLANCO if j.nombre == resp or j.nombre in responsables_activos else SUAVE,
               (x + 15, panel.y + 7), sombra=False)
+        if j.ejercicio_restante > 0:
+            etiqueta_ejercicio = f"CORRE {math.ceil(j.ejercicio_restante)}s"
+            color_ejercicio = AMARILLO
+        elif j.tiempo_para_ejercicio <= 0:
+            etiqueta_ejercicio = "¡GIMNASIO!"
+            color_ejercicio = ROJO_CLARO if int(tiempo_juego * 4) % 2 else ROJO
+        else:
+            restantes = math.ceil(j.tiempo_para_ejercicio)
+            minutos, segundos = divmod(restantes, 60)
+            etiqueta_ejercicio = f"GIM {minutos:02d}:{segundos:02d}"
+            color_ejercicio = ROJO_CLARO if restantes <= AVISO_EJERCICIO else SUAVE
+        texto(etiqueta_ejercicio, fuente_micro, color_ejercicio,
+              (x + 190, panel.y + 7), derecha=True, sombra=False)
         estados = (
             ("salud", "SALUD", j.vida, VERDE),
             ("comida", "COMIDA", 100.0 - j.hambre,
@@ -3414,6 +3505,8 @@ def main():
             if estado == "juego":
                 teclas = pygame.key.get_pressed()
                 for i, jugador in enumerate(jugadores):
+                    if jugador.ejercicio_restante > 0:
+                        continue
                     if len(jugadores) > 1 and jugador.nombre in formularios_multijugador:
                         continue
                     jugador.mover(teclas, controles[i], dt)
