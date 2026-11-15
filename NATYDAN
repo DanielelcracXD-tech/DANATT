@@ -1,6 +1,6 @@
-"""
+  """
 APOLLO 13 - Misión: regreso a casa
------------------------------------
+
 Los eventos siguen la cronología del artículo de la NASA "Houston, hemos tenido un
 problema" (J. Uri) y las preguntas mezclan hechos de esa historia con los niveles de
 madurez de concepto (CML) de Wessen et al. (JPL, 2013).
@@ -12,6 +12,7 @@ sin parar. Cada misión completada recupera el consumible correspondiente; cada
 respuesta incorrecta lo castiga. Además, ocurren incidentes aleatorios como en
 el vuelo real. Si cualquiera llega a cero, la misión fracasa.
 """
+
 import math
 import json
 import random
@@ -21,10 +22,24 @@ from pathlib import Path
 import pygame
 
 pygame.init()
+pygame.mixer.init()
 
-# ====================
+
+# MUSICA DE FONDO
+pygame.mixer.music.load(r"C:\Users\naty\Documents\sonidos\alarm.mp3")
+pygame.mixer.music.set_volume(0.2)
+# BUCLE INFINITO
+pygame.mixer.music.play(-1)
+# ESTALLIDO
+sonido_inicio = pygame.mixer.Sound(r"C:\Users\naty\Documents\sonidos\inicio.mp3")
+sonido_inicio.set_volume(0.7)
+sonido_inicio.play()
+
+sonido_mision = pygame.mixer.Sound(r"C:\Users\naty\Documents\sonidos\message.mp3")
+sonido_perder = pygame.mixer.Sound(r"C:\Users\naty\Documents\sonidos\end.mp3")
+
 # CONFIG
-# ====================
+
 
 ANCHO = 1280
 ALTO = 720
@@ -37,7 +52,7 @@ pantalla = pygame.Surface((ANCHO, ALTO))
 pygame.display.set_caption("Apollo 13")
 clock = pygame.time.Clock()
 
-# --- Ajustes de dificultad (puedes tocarlos) ---
+# Ajustes de dificultad (puedes tocarlos) 
 DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": 0.29}   # % por segundo
 RECUPERA = 22.0        # % que recupera cada misión completada
 PENAL = 6.0            # % que se pierde por cada respuesta incorrecta
@@ -85,9 +100,9 @@ def presentar_pantalla():
     pygame.display.flip()
 
 
-# ====================
+
 # COLORES, FUENTES Y UTILIDADES
-# ====================
+
 
 FONDO = (5, 10, 23)
 BLANCO = (239, 245, 255)
@@ -182,7 +197,7 @@ def fmt_met(seg):
     return f"{seg // 3600:03d}:{(seg % 3600) // 60:02d}:{seg % 60:02d}"
 
 
-# ---------- partículas ----------
+#partículas 
 
 particulas = []
 
@@ -213,9 +228,7 @@ def dibujar_particulas():
                            max(1, int(p["r"] * k + 0.5)))
 
 
-# ====================
 # SALAS Y MAPA
-# ====================
 
 salas = {
     "ENERGIA": pygame.Rect(480, 350, 430, 250),
@@ -314,10 +327,7 @@ def hitbox_valida(caja):
             and punto_caminable(caja.left, caja.bottom - 1)
             and punto_caminable(caja.right - 1, caja.bottom - 1))
 
-
-# ====================
 # JUGADOR
-# ====================
 
 class Jugador:
     def __init__(self, x, y, color, nombre):
@@ -437,9 +447,7 @@ class Jugador:
                                                        (cx, y - 30 + sube)])
 
 
-# ====================
 # DATOS DE MISIONES
-# ====================
 
 NOMBRES_CML = {1: "Cocktail Napkin", 2: "Initial Feasibility", 3: "Trade Space", 4: "Point Design"}
 
@@ -750,9 +758,7 @@ misiones = [
      ]},
 ]
 
-# ====================
 # ESTADO DE PARTIDA
-# ====================
 
 estado = "menu"
 tiempo_pausa = 0.0
@@ -960,11 +966,12 @@ def mision_para_jugador(jugador):
 
 
 def actualizar_progreso_misiones():
+    sonido_mision.play()
     global mision_actual, met_vis
     mision_actual = len(misiones_completadas)
     siguiente = next((i for i in range(len(misiones)) if i not in misiones_completadas), None)
     met_vis = misiones[siguiente]["met"] if siguiente is not None else misiones[-1]["met"]
-
+    
 
 def vistas_multijugador():
     total = len(jugadores)
@@ -2527,6 +2534,7 @@ def dibujar_resultado(tiempo, exito):
               sombra=False)
         texto(f"PUNTUACIÓN  {fmt_puntos(puntuacion)} PTS", fuente, AMARILLO, (640, 454), centro=True)
         texto("ENTER o R para volver al menú", fuente_mini, SUAVE, (640, 492), centro=True)
+        sonido_perder.play()
 
     if error_puntuaciones:
         texto("No se pudo guardar el registro de puntuaciones.",
