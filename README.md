@@ -27,10 +27,11 @@ lo distes todo, te pasastes de koketa
 ola eres muy bonita jeje, te quiero muchísimo
 
 
-oye si? oye okei te quiero mucho
-
-
 oye m justas jeje
 
 
 oye jejejejejjejejje tú a mi jejejeje, mucho mucho
+
+
+
+oye si? oye okei te quiero mucho
