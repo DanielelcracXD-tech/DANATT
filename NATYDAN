@@ -281,6 +281,8 @@ salas = {
     "ALMACEN": pygame.Rect(1470, 1070, 290, 160),
     "TALLER": pygame.Rect(1845, 1070, 300, 150),
 }
+ZONA_COMIDA = pygame.Rect(salas["COMEDOR"].x + 10, salas["COMEDOR"].y + 34, 136, 100)
+ZONA_AGUA = pygame.Rect(salas["COMEDOR"].x + 154, salas["COMEDOR"].y + 34, 136, 100)
 
 NOMBRES_SALA = {
     "ENERGIA": "ENERGÍA", "OXIGENO": "OXÍGENO", "NAVEGACION": "NAVEGACIÓN",
@@ -392,6 +394,25 @@ class Jugador:
         self.fase = 0.0
         self.moviendo = False
         self.polvo = 0.0
+        self.entrada_restante = 1.0
+        self.dano_restante = 0.0
+        self.dano_cooldown = 0.0
+        self.accion_restante = 0.0
+        self.accion_tipo = None
+
+    def recibir_dano(self, cantidad):
+        """Reduce la salud y activa el efecto visual cuando el daño es positivo."""
+        vida_anterior = self.vida
+        self.vida = max(0.0, self.vida - cantidad)
+        if self.vida < vida_anterior and self.dano_cooldown <= 0:
+            self.dano_restante = 0.65
+            self.dano_cooldown = 1.0
+            emitir(self.rect.centerx, self.rect.centery, ROJO_CLARO, 9, 75, 0.35, 2)
+
+    def animar_accion(self, tipo):
+        """Activa una breve animación al consumir comida o agua."""
+        self.accion_tipo = tipo
+        self.accion_restante = 0.8
 
     def hitbox(self, x, y):
         """Devuelve la caja de colisión reducida situada en la parte inferior."""
@@ -498,11 +519,44 @@ class Jugador:
 
         tamano_sprite = (34, 44)
         sprite = pygame.transform.smoothscale(sprite, tamano_sprite)
+        entrada = self.entrada_restante > 0
+        if entrada:
+            progreso = suave(1.0 - self.entrada_restante)
+            escala = 0.55 + 0.45 * progreso
+            tamano_sprite = (max(1, round(tamano_sprite[0] * escala)),
+                             max(1, round(tamano_sprite[1] * escala)))
+            sprite = pygame.transform.smoothscale(sprite, tamano_sprite)
+            sprite.set_alpha(round(255 * progreso))
         x_sprite = round(cx - tamano_sprite[0] / 2)
-        y_sprite = round(self.rect.bottom - tamano_sprite[1] + bob)
+        elevacion_entrada = (1.0 - progreso) * 18 if entrada else 0
+        y_sprite = round(self.rect.bottom - tamano_sprite[1] + bob + elevacion_entrada)
+        if self.dano_restante > 0:
+            x_sprite += round(math.sin(self.dano_restante * 55) * 4)
+            if int(self.dano_restante * 18) % 2:
+                sprite.fill((255, 95, 95, 0), special_flags=pygame.BLEND_RGBA_ADD)
         pantalla.blit(sprite, (x_sprite, y_sprite))
+        if entrada:
+            radio = 14 + round((1.0 - progreso) * 22)
+            pygame.draw.ellipse(pantalla, mezclar((30, 65, 92), AZUL, progreso),
+                                (cx - radio, self.rect.bottom - 5, radio * 2, 8), 1)
+        if self.accion_restante > 0:
+            progreso_accion = 1.0 - self.accion_restante / 0.8
+            burbuja_y = round(y_sprite - 9 - math.sin(progreso_accion * math.pi) * 9)
+            color_accion = AMARILLO if self.accion_tipo == "comida" else AZUL
+            pygame.draw.circle(pantalla, (10, 23, 39), (cx + 17, burbuja_y), 10)
+            pygame.draw.circle(pantalla, color_accion, (cx + 17, burbuja_y), 10, 1)
+            if self.accion_tipo == "comida":
+                pygame.draw.ellipse(pantalla, color_accion, (cx + 12, burbuja_y - 3, 10, 6), 1)
+                pygame.draw.line(pantalla, color_accion, (cx + 17, burbuja_y + 1),
+                                 (cx + 17, burbuja_y + 4), 1)
+            else:
+                pygame.draw.line(pantalla, color_accion, (cx + 17, burbuja_y - 5),
+                                 (cx + 17, burbuja_y + 2), 2)
+                pygame.draw.circle(pantalla, color_accion, (cx + 17, burbuja_y + 3), 2)
         col = self.color if resaltado else mezclar(self.color, BLANCO, 0.35)
-        texto(self.nombre, fuente_mini_b if resaltado else fuente_mini, col, (cx, y - 26), centro=True)
+        nombre_img = (fuente_mini_b if resaltado else fuente_mini).render(self.nombre, True, col)
+        nombre_img.set_alpha(round(255 * progreso) if entrada else 255)
+        pantalla.blit(nombre_img, nombre_img.get_rect(center=(cx, y - 26)))
         if resaltado:
             sube = int(math.sin(self.fase * 1.3) * 2)
             pygame.draw.polygon(pantalla, self.color, [(cx - 4, y - 35 + sube), (cx + 4, y - 35 + sube),
@@ -1377,31 +1431,28 @@ def interactuar_servicios(jugador):
         return True
 
     if salas["COMEDOR"].collidepoint(x, y):
-        usados = []
-        faltantes = []
-        if jugador.hambre > 0:
-            if suministros["comida"] > 0:
+        if ZONA_COMIDA.collidepoint(x, y):
+            if jugador.hambre <= 0:
+                lanzar_alerta(f"{jugador.nombre}: aún no necesita comer.", SUAVE, 3.0)
+            elif suministros["comida"] > 0:
                 suministros["comida"] -= 1
                 jugador.hambre = max(0.0, jugador.hambre - 42.0)
-                usados.append("comió una ración (hambre -42)")
+                jugador.animar_accion("comida")
+                lanzar_alerta(f"{jugador.nombre}: comió una ración (hambre -42).", VERDE, 4.0)
             else:
-                faltantes.append("no queda comida")
-        if jugador.sed > 0:
-            if suministros["agua"] > 0:
+                lanzar_alerta("No queda comida en la cafetería.", ROJO_CLARO, 4.0)
+        elif ZONA_AGUA.collidepoint(x, y):
+            if jugador.sed <= 0:
+                lanzar_alerta(f"{jugador.nombre}: aún no necesita beber.", SUAVE, 3.0)
+            elif suministros["agua"] > 0:
                 suministros["agua"] -= 1
                 jugador.sed = max(0.0, jugador.sed - 45.0)
-                usados.append("bebió agua (sed -45)")
+                jugador.animar_accion("agua")
+                lanzar_alerta(f"{jugador.nombre}: bebió agua (sed -45).", VERDE, 4.0)
             else:
-                faltantes.append("no queda agua")
-        if usados:
-            mensaje = f"{jugador.nombre}: " + " y ".join(usados)
-            if faltantes:
-                mensaje += "; " + " y ".join(faltantes)
-            lanzar_alerta(mensaje, VERDE if not faltantes else AMARILLO, 4.0)
-        elif faltantes:
-            lanzar_alerta(f"{jugador.nombre}: " + " y ".join(faltantes), ROJO_CLARO, 4.0)
+                lanzar_alerta("No queda agua en la cafetería.", ROJO_CLARO, 4.0)
         else:
-            lanzar_alerta(f"{jugador.nombre}: aún no necesita comer ni beber.", SUAVE, 3.0)
+            lanzar_alerta("Ve al lado de COMIDA o al dispensador de AGUA.", AMARILLO, 3.0)
         return True
 
     if salas["ENFERMERIA"].collidepoint(x, y):
@@ -1450,6 +1501,11 @@ def actualizar_efectos(dt):
     global sacudida, flash_rojo
     sacudida = max(0.0, sacudida - dt)
     flash_rojo = max(0.0, flash_rojo - dt)
+    for jugador in jugadores:
+        jugador.entrada_restante = max(0.0, jugador.entrada_restante - dt)
+        jugador.dano_restante = max(0.0, jugador.dano_restante - dt)
+        jugador.dano_cooldown = max(0.0, jugador.dano_cooldown - dt)
+        jugador.accion_restante = max(0.0, jugador.accion_restante - dt)
     for a in alertas:
         a["t"] += dt
     alertas[:] = [a for a in alertas if a["t"] < a["dur"]]
@@ -1507,9 +1563,7 @@ def actualizar_recursos(dt):
                 )
             if jugador.tiempo_para_ejercicio <= 0:
                 tiempo_penalizacion = min(dt, max(0.0, -jugador.tiempo_para_ejercicio))
-                jugador.vida = max(
-                    0.0, jugador.vida - DANO_FALTA_EJERCICIO * tiempo_penalizacion
-                )
+                jugador.recibir_dano(DANO_FALTA_EJERCICIO * tiempo_penalizacion)
 
     # Energía y oxígeno disminuyen; el signo negativo hace que aumente la carga de CO2.
     for k in recursos:
@@ -1526,9 +1580,9 @@ def actualizar_recursos(dt):
         jugador.hambre = min(100.0, jugador.hambre + TASA_HAMBRE * dt)
         jugador.sed = min(100.0, jugador.sed + TASA_SED * dt)
         if jugador.hambre >= 100.0:
-            jugador.vida = max(0.0, jugador.vida - 0.2 * dt)
+            jugador.recibir_dano(0.2 * dt)
         if jugador.sed >= 100.0:
-            jugador.vida = max(0.0, jugador.vida - 0.4 * dt)
+            jugador.recibir_dano(0.4 * dt)
     proximo_evento -= dt
     if proximo_evento <= 0:
         proximo_evento = random.uniform(EVENTO_MIN, EVENTO_MAX)
@@ -1682,7 +1736,7 @@ def aplicar_riesgo_mision(mision, jugador):
     probabilidad, dano, motivo = riesgo
     if random.random() >= probabilidad:
         return True
-    jugador.vida = max(0.0, jugador.vida - dano)
+    jugador.recibir_dano(dano)
     lanzar_alerta(
         f"ACCIDENTE EN MISIÓN: {jugador.nombre} perdió {dano} de salud. {motivo}.",
         ROJO_CLARO, 6.0
@@ -2157,7 +2211,17 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
         for x in (sala.x + 202, sala.x + 244):
             pygame.draw.line(pantalla, color, (x, sala.y + 67), (x, sala.y + 81), 3)
     elif nombre == "COMEDOR":
-        mesa = pygame.Rect(sala.x + 60, sala.y + 67, 82, 18)
+        zona_comida = pygame.Rect(sala.x + 6, sala.y + 31, 142, 106)
+        zona_agua = pygame.Rect(sala.x + 152, sala.y + 31, 142, 106)
+        rect_alpha(pantalla, (170, 119, 54), zona_comida, 20, 7)
+        rect_alpha(pantalla, (49, 132, 181), zona_agua, 20, 7)
+        pygame.draw.line(pantalla, (76, 105, 127), (sala.centerx, sala.y + 34),
+                         (sala.centerx, sala.bottom - 24), 2)
+        texto("COMIDA", fuente_micro, AMARILLO, (zona_comida.centerx, zona_comida.y + 8),
+              centro=True, sombra=False)
+        texto("AGUA", fuente_micro, AZUL, (zona_agua.centerx, zona_agua.y + 8),
+              centro=True, sombra=False)
+        mesa = pygame.Rect(sala.x + 30, sala.y + 67, 82, 18)
         pygame.draw.rect(pantalla, (34, 51, 65), mesa, border_radius=5)
         pygame.draw.rect(pantalla, color, mesa, 1, border_radius=5)
         for x in (mesa.x + 12, mesa.x + 40, mesa.x + 68):
@@ -2169,7 +2233,7 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
                          (mesa.x + 8, mesa.bottom + 8), 2)
         pygame.draw.line(pantalla, (89, 107, 124), (mesa.right - 8, mesa.bottom),
                          (mesa.right - 8, mesa.bottom + 8), 2)
-        dispensador = pygame.Rect(sala.x + 155, sala.y + 55, 35, 38)
+        dispensador = pygame.Rect(sala.x + 207, sala.y + 55, 35, 38)
         pygame.draw.rect(pantalla, (23, 42, 59), dispensador, border_radius=4)
         pygame.draw.rect(pantalla, color, dispensador, 1, border_radius=4)
         pygame.draw.rect(pantalla, (72, 131, 165), (dispensador.x + 7, dispensador.y + 7, 21, 10),
@@ -2433,13 +2497,26 @@ def dibujar_nave(tiempo):
             en_servicio = [i for i, jugador in enumerate(jugadores)
                            if sala.collidepoint(jugador.pies())]
             if en_servicio:
-                tecla = ("/".join(TECLAS_ACEPTAR_TEXTO[i] for i in en_servicio)
-                         if len(jugadores) > 1 else "E")
                 if nombre == "COMEDOR":
-                    indicacion = f"[{tecla}] COMER / BEBER"
+                    indicaciones = []
+                    for i in en_servicio:
+                        jugador = jugadores[i]
+                        tecla = TECLAS_ACEPTAR_TEXTO[i] if len(jugadores) > 1 else "E"
+                        if ZONA_COMIDA.collidepoint(jugador.pies()):
+                            accion = "COMER"
+                        elif ZONA_AGUA.collidepoint(jugador.pies()):
+                            accion = "BEBER AGUA"
+                        else:
+                            accion = "ELIGE LADO"
+                        indicaciones.append(f"[{tecla}] {accion}")
+                    indicacion = "  ·  ".join(indicaciones)
                 elif nombre == "ENFERMERIA":
+                    tecla = ("/".join(TECLAS_ACEPTAR_TEXTO[i] for i in en_servicio)
+                             if len(jugadores) > 1 else "E")
                     indicacion = f"[{tecla}] ATENCIÓN MÉDICA"
                 else:
+                    tecla = ("/".join(TECLAS_ACEPTAR_TEXTO[i] for i in en_servicio)
+                             if len(jugadores) > 1 else "E")
                     ocupante = next((jugador for jugador in jugadores
                                      if jugador.ejercicio_restante > 0), None)
                     if ocupante:
@@ -3214,7 +3291,7 @@ def dibujar_menu(mouse, tiempo):
     texto("Una tripulación. Recursos limitados. Una ruta de regreso.", fuente, SUAVE, (74, 207))
     texto("Raciones limitadas: 5 comidas y 7 aguas por tripulante.",
           fuente_mini, APAGADO, (74, 235), sombra=False)
-    texto("Administra comida y agua en la cafetería; usa la enfermería para curarte.",
+    texto("Come en el lado de COMIDA y toma agua junto al dispensador; usa enfermería para curarte.",
           fuente_o, APAGADO,
           (74, 253), sombra=False)
 
@@ -3925,6 +4002,9 @@ EVENTOS = [
     ("Liberación de gases de un tanque de hidrógeno: oscilación de la nave", "oxigeno", 5),
     ("Los propulsores RCS se encienden para mantener la orientación", "oxigeno", 4),
 ]
+DANO_A_TRIPULANTE_MIN = 5
+DANO_A_TRIPULANTE_MAX = 12
+PROBABILIDAD_DANO_EVENTO = 0.25
 AYUDAS = [
     ("Houston envía un procedimiento para ahorrar energía en Aquarius", "energia", 6),
     ("Kerwin aconseja reubicar los cartuchos de LiOH", "co2", 6),
@@ -3953,6 +4033,14 @@ def lanzar_evento():
     lanzar_alerta(f"INCIDENTE: {cadena}  ({signo}{dano} % {RECURSOS_INFO[rec][0].lower()})", ROJO_CLARO, 5.5)
     sacudida = 0.5
     flash_rojo = 0.6
+    if jugadores and random.random() < PROBABILIDAD_DANO_EVENTO:
+        jugador = random.choice(jugadores)
+        dano_personal = random.randint(DANO_A_TRIPULANTE_MIN, DANO_A_TRIPULANTE_MAX)
+        jugador.recibir_dano(dano_personal)
+        lanzar_alerta(
+            f"ACCIDENTE: {jugador.nombre} recibió {dano_personal} de daño durante el incidente.",
+            ROJO_CLARO, 6.0
+        )
 
 
 # --- Corrección del CO2: en el original premiar subía el CO2 y fallar lo bajaba,
