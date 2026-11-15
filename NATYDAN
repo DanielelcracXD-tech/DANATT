@@ -50,11 +50,13 @@ pantalla = pygame.Surface((ANCHO, ALTO))
 pygame.display.set_caption("Apollo 13")
 clock = pygame.time.Clock()
 
-# Ajustes de dificultad (puedes tocarlos) 
+# Ajustes de dificultad y economía de los consumibles (porcentaje).
+# DRENAJE se resta del valor actual cada segundo: positivo reduce el recurso,
+# mientras que el valor negativo de CO2 hace que su medidor aumente con el tiempo.
 DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": -0.29}   # % por segundo
-RECUPERA = 22.0        # % que recupera cada misión completada
-PENAL = 6.0            # % que se pierde por cada respuesta incorrecta
-EVENTO_MIN, EVENTO_MAX = 28.0, 50.0   # segundos entre incidentes aleatorios
+RECUPERA = 22.0        # % que suma la misión al recurso asociado (máximo 100 % al premiar)
+PENAL = 6.0            # % que resta cada respuesta incorrecta al recurso de esa misión
+EVENTO_MIN, EVENTO_MAX = 28.0, 50.0   # intervalo aleatorio entre incidentes (segundos)
 OBJETIVO_URGENCIA = 60.0
 PUNTOS_BASE_MISION = 1000
 PUNTOS_BONO_SEGUNDO = 10
@@ -487,7 +489,9 @@ AFINIDAD = {
     "Soporte Vital": ["Ingeniero", "Director", "Navegación"],
 }
 
+# Nombre y color de cada medidor, reutilizados en la interfaz y las alertas.
 RECURSOS_INFO = {"energia": ("ENERGÍA", AMARILLO), "oxigeno": ("OXÍGENO", AZUL), "co2": ("DEPURADOR CO2", VERDE)}
+# Texto que explica el motivo de fracaso asociado a cada recurso agotado.
 CAUSA_FALLO = {
     "energia": "Las baterías se agotaron y la nave quedó sin energía.",
     "oxigeno": "Se agotó el oxígeno disponible para la tripulación.",
@@ -799,7 +803,11 @@ formulario = None
 cache_forms = {}
 causa_fallo = "energia"
 
+# Valores por defecto al cargar el módulo. Al empezar una partida, crear_jugadores
+# restablece los tres medidores a 100 %; en multijugador son compartidos.
 recursos = {"energia": 100.0, "oxigeno": 100.0, "co2": 0.0}
+# Copia interpolada solo para dibujar las barras sin saltos; las reglas consultan
+# y modifican "recursos".
 recursos_vis = dict(recursos)
 tiempo_juego = 0.0
 puntuacion = 0
@@ -816,6 +824,8 @@ formularios_multijugador = {}
 temporizadores_multijugador = {}
 alarmas_urgencia_multijugador = set()
 
+# Cada tupla indica (texto de alerta, recurso afectado, cantidad que se resta).
+# Un valor negativo invierte la resta y, por tanto, suma puntos al medidor.
 EVENTOS = [
     ("Cortocircuito en la batería 2 de la etapa de descenso", "energia", 7),
     ("Condensación en la cabina: los cartuchos de LiOH pierden eficacia", "co2", -7),
@@ -960,8 +970,12 @@ def crear_jugadores(total):
     formularios_multijugador.clear()
     temporizadores_multijugador.clear()
     alarmas_urgencia_multijugador.clear()
+    # Al iniciar una partida, todos los medidores vuelven a sus valores iniciales.
     for k in recursos:
-        recursos[k] = 100.0
+
+        recursos[k] = 100.0        
+        if k == "co2":
+            recursos[k] = 0.0
         recursos_vis[k] = 100.0
     mision_actual = 0
     formulario = None
@@ -1169,9 +1183,10 @@ def actualizar_recursos(dt):
             alarma_urgencia = True
             lanzar_alerta("ALERTA: venció la ventana de respuesta. Se perdió el bono de rapidez.",
                           ROJO_CLARO, 6.0)
-    # DRENAJE incluye signo: valores positivos consumen el recurso y el CO2 negativo
-    # hace que aumente su carga hasta que una misión de soporte vital lo reduzca.
+    # DRENAJE se resta del valor: energía y oxígeno disminuyen, mientras el signo
+    # negativo configurado para CO2 hace que ese medidor aumente con el tiempo.
     for k in recursos:
+        # Se evita bajar de cero; la barra visible sigue al valor real suavemente.
         recursos[k] = max(0.0, recursos[k] - DRENAJE[k] * dt)
         recursos_vis[k] += (recursos[k] - recursos_vis[k]) * min(1.0, dt * 6)
     proximo_evento -= dt
@@ -1180,6 +1195,7 @@ def actualizar_recursos(dt):
         lanzar_evento()
     agotado = next((k for k, v in recursos.items() if v <= 0), None)
     if agotado:
+        # El primer recurso que llega a cero determina el mensaje de fracaso.
         causa_fallo = agotado
         formulario = None
         formularios_multijugador.clear()
@@ -1292,6 +1308,7 @@ def enviar_formulario(f=None, jugador=None):
             c["elegida"] = None
             errores += 1
     rec = m["recurso"]
+    # Un error resta PENAL por respuesta; el recurso no puede bajar de cero.
     if errores:
         perdida = errores * PENAL
         recursos[rec] = max(0.0, recursos[rec] - perdida)
@@ -1316,6 +1333,7 @@ def finalizar_exito():
     m = misiones[mision_actual]
     sala = salas[m["sala"]]
     rec = m["recurso"]
+    # La misión recupera su recurso asociado, sin superar el 100 %.
     recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
     bono = max(0, int((OBJETIVO_URGENCIA - t_mision) * PUNTOS_BONO_SEGUNDO))
     puntos_ganados = PUNTOS_BASE_MISION + bono
@@ -1351,6 +1369,7 @@ def finalizar_exito_multijugador(nombre_jugador):
     m = misiones[indice]
     sala = salas[m["sala"]]
     rec = m["recurso"]
+    # En multijugador se aplica la misma recuperación sobre el estado compartido.
     recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
     duracion = temporizadores_multijugador[nombre_jugador]
     bono = max(0, int((OBJETIVO_URGENCIA - duracion) * PUNTOS_BONO_SEGUNDO))
@@ -2111,6 +2130,7 @@ def dibujar_recursos():
         nombre, col = RECURSOS_INFO[k]
         v = recursos_vis[k]
         c = col
+        # Los medidores por debajo del 25 % parpadean en rojo para señalar peligro.
         if v < 25:
             c = ROJO_CLARO if int(tiempo_juego * 4) % 2 == 0 else ROJO
         texto("CO2" if k == "co2" else nombre, fuente_mini, SUAVE if v >= 25 else c, (x, 24), sombra=False)
