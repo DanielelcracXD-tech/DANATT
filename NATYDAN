@@ -962,9 +962,34 @@ def dibujar_icono_sala(nombre, centro, color):
 
 
 def dibujar_nave(tiempo):
-    pygame.draw.rect(pantalla, (7, 14, 27), MAPA, border_radius=22)
-    texto("MÓDULO DE MANDO  ·  APOLLO 13", fuente_mini, APAGADO, (MAPA.x + 20, MAPA.y + 8), sombra=False)
+    pygame.draw.rect(pantalla, (10, 20, 34), MAPA, border_radius=24)
+    pygame.draw.rect(pantalla, (48, 73, 99), MAPA, 2, border_radius=24)
+    casco = MAPA.inflate(-10, -10)
+    pygame.draw.rect(pantalla, (21, 37, 56), casco, 1, border_radius=20)
+    texto("ODYSSEY  ·  MÓDULO DE MANDO", fuente_mini_b, SUAVE, (MAPA.x + 20, MAPA.y + 8),
+          sombra=False)
+    texto("APOLLO 13  /  CABINA PRESURIZADA", fuente_mini, APAGADO,
+          (MAPA.right - 20, MAPA.y + 9), derecha=True, sombra=False)
+
+    # Costillas del casco y remaches alrededor de los compartimentos.
+    for x in range(MAPA.x + 30, MAPA.right - 20, 90):
+        pygame.draw.line(pantalla, (35, 54, 76), (x, MAPA.y + 28), (x, MAPA.y + 34), 2)
+        pygame.draw.line(pantalla, (35, 54, 76), (x, MAPA.bottom - 34), (x, MAPA.bottom - 28), 2)
+        pygame.draw.circle(pantalla, (72, 96, 120), (x, MAPA.y + 20), 2)
+        pygame.draw.circle(pantalla, (72, 96, 120), (x, MAPA.bottom - 20), 2)
+    for y in (MAPA.y + 102, MAPA.y + 204, MAPA.y + 306):
+        pygame.draw.line(pantalla, (32, 50, 70), (MAPA.x + 8, y), (MAPA.x + 17, y), 2)
+        pygame.draw.line(pantalla, (32, 50, 70), (MAPA.right - 17, y), (MAPA.right - 8, y), 2)
+
     dibujar_paredes()
+
+    # Paneles de presión y cableado en el corredor central.
+    pygame.draw.line(pantalla, (34, 54, 75), (PASILLO.x + 12, PASILLO.y + 8),
+                     (PASILLO.right - 12, PASILLO.y + 8), 1)
+    pygame.draw.line(pantalla, (34, 54, 75), (PASILLO.x + 12, PASILLO.bottom - 8),
+                     (PASILLO.right - 12, PASILLO.bottom - 8), 1)
+    for x in range(PASILLO.x + 24, PASILLO.right - 16, 54):
+        pygame.draw.line(pantalla, (27, 44, 64), (x, PASILLO.y + 17), (x, PASILLO.bottom - 17), 1)
 
     objetivo = misiones[mision_actual] if mision_actual < len(misiones) else None
     pulso = 0.5 + 0.5 * math.sin(tiempo * 3.2)
@@ -973,6 +998,16 @@ def dibujar_nave(tiempo):
         indices = [i for i, m in enumerate(misiones) if m["sala"] == nombre]
         activa = objetivo is not None and objetivo["sala"] == nombre
         pygame.draw.rect(pantalla, (17, 32, 52), sala, border_radius=12)
+        # Consola mural compacta, como el instrumental de cada estación.
+        consola = pygame.Rect(sala.x + 14, sala.y + 54, 38, 31)
+        pygame.draw.rect(pantalla, (11, 23, 39), consola, border_radius=4)
+        pygame.draw.rect(pantalla, (39, 61, 83), consola, 1, border_radius=4)
+        pygame.draw.rect(pantalla, (23, 47, 67), (consola.x + 5, consola.y + 5, 28, 12), border_radius=2)
+        pygame.draw.line(pantalla, mezclar((23, 47, 67), color, 0.45),
+                         (consola.x + 7, consola.y + 10), (consola.x + 18, consola.y + 10), 1)
+        for luz in range(3):
+            pygame.draw.circle(pantalla, color if luz == 0 and activa else (67, 91, 112),
+                               (consola.x + 9 + luz * 10, consola.y + 23), 2)
         if activa:
             # ondas que se expanden desde el centro de la sala
             for k in range(2):
