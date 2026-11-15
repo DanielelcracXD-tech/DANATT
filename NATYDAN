@@ -257,24 +257,24 @@ def dibujar_particulas():
 # SALAS Y MAPA
 
 salas = {
-    "ENERGIA": pygame.Rect(480, 350, 430, 250),
-    "OXIGENO": pygame.Rect(1120, 350, 430, 250),
-    "NAVEGACION": pygame.Rect(1760, 350, 430, 250),
-    "COMUNICACIONES": pygame.Rect(760, 760, 430, 250),
-    "SOPORTE VITAL": pygame.Rect(1400, 760, 430, 250),
-    "TELEMETRIA": pygame.Rect(1880, 760, 430, 250),
-    "OBSERVATORIO": pygame.Rect(560, 150, 270, 140),
-    "ESCLUSA AUXILIAR": pygame.Rect(1200, 150, 270, 140),
-    "ANTENAS": pygame.Rect(1840, 150, 270, 140),
-    "CAMAROTES": pygame.Rect(865, 150, 270, 140),
-    "INVERNADERO": pygame.Rect(1485, 150, 270, 140),
-    "ENFERMERIA": pygame.Rect(920, 510, 170, 130),
-    "LABORATORIO": pygame.Rect(1560, 510, 170, 130),
-    "CONTROL TERMICO": pygame.Rect(2200, 510, 180, 130),
-    "COMEDOR": pygame.Rect(840, 1070, 270, 140),
-    "GIMNASIO": pygame.Rect(1185, 1070, 270, 140),
-    "ALMACEN": pygame.Rect(1480, 1070, 270, 140),
-    "TALLER": pygame.Rect(1920, 1070, 270, 140),
+    "ENERGIA": pygame.Rect(470, 350, 450, 270),
+    "OXIGENO": pygame.Rect(1120, 350, 450, 270),
+    "NAVEGACION": pygame.Rect(1770, 350, 450, 270),
+    "COMUNICACIONES": pygame.Rect(745, 740, 460, 270),
+    "SOPORTE VITAL": pygame.Rect(1385, 740, 460, 270),
+    "TELEMETRIA": pygame.Rect(1865, 740, 460, 270),
+    "OBSERVATORIO": pygame.Rect(555, 140, 280, 150),
+    "ESCLUSA AUXILIAR": pygame.Rect(1195, 140, 280, 150),
+    "ANTENAS": pygame.Rect(1835, 140, 280, 150),
+    "CAMAROTES": pygame.Rect(860, 140, 280, 150),
+    "INVERNADERO": pygame.Rect(1480, 140, 280, 150),
+    "ENFERMERIA": pygame.Rect(930, 500, 180, 140),
+    "LABORATORIO": pygame.Rect(1580, 500, 180, 140),
+    "CONTROL TERMICO": pygame.Rect(2230, 500, 190, 140),
+    "COMEDOR": pygame.Rect(825, 1070, 300, 160),
+    "GIMNASIO": pygame.Rect(1175, 1070, 290, 160),
+    "ALMACEN": pygame.Rect(1470, 1070, 290, 160),
+    "TALLER": pygame.Rect(1845, 1070, 300, 150),
 }
 
 NOMBRES_SALA = {
@@ -314,21 +314,22 @@ PASILLOS_EXTRA = [
     pygame.Rect(390, 300, 1800, 50),
     pygame.Rect(650, 1020, 1700, 50),
 ]
+# Núcleos de colisión compactos; el dibujo los representa como módulos técnicos.
 MUROS_LABERINTO = [
-    pygame.Rect(504, 304, 16, 16),
-    pygame.Rect(1014, 330, 16, 16),
-    pygame.Rect(1664, 304, 16, 16),
-    pygame.Rect(2134, 330, 16, 16),
-    pygame.Rect(444, 661, 18, 32),
-    pygame.Rect(814, 687, 18, 32),
-    pygame.Rect(1170, 661, 18, 32),
-    pygame.Rect(1510, 687, 18, 32),
-    pygame.Rect(1850, 661, 18, 32),
-    pygame.Rect(2200, 687, 18, 32),
-    pygame.Rect(804, 1024, 16, 16),
-    pygame.Rect(1264, 1050, 16, 16),
-    pygame.Rect(1864, 1024, 16, 16),
-    pygame.Rect(2234, 1050, 16, 16),
+    pygame.Rect(508, 302, 10, 12),
+    pygame.Rect(1017, 338, 10, 10),
+    pygame.Rect(1668, 302, 10, 12),
+    pygame.Rect(2137, 338, 10, 10),
+    pygame.Rect(447, 658, 12, 16),
+    pygame.Rect(817, 692, 12, 16),
+    pygame.Rect(1173, 658, 12, 16),
+    pygame.Rect(1513, 692, 12, 16),
+    pygame.Rect(1853, 658, 12, 16),
+    pygame.Rect(2203, 692, 12, 16),
+    pygame.Rect(807, 1022, 10, 12),
+    pygame.Rect(1267, 1058, 10, 10),
+    pygame.Rect(1867, 1022, 10, 12),
+    pygame.Rect(2237, 1058, 10, 10),
 ]
 PUERTAS = []
 CENTROS_MISION_SUPERIORES = tuple(salas[n].centerx for n in ("ENERGIA", "OXIGENO", "NAVEGACION"))
@@ -1847,11 +1848,30 @@ def dibujar_paredes():
         pygame.draw.rect(pantalla, PARED, zona.inflate(GROSOR_PARED * 2, GROSOR_PARED * 2), border_radius=10)
     for zona in ZONAS:
         pygame.draw.rect(pantalla, SUELO, zona, border_radius=6)
-    for muro in MUROS_LABERINTO:
-        pygame.draw.rect(pantalla, (34, 55, 77), muro, border_radius=4)
-        pygame.draw.rect(pantalla, (93, 128, 157), muro, 1, border_radius=4)
-        pygame.draw.line(pantalla, (56, 91, 120), (muro.centerx, muro.y + 5),
-                         (muro.centerx, muro.bottom - 5), 1)
+    for indice, modulo in enumerate(MUROS_LABERINTO):
+        marco = modulo.inflate(4, 4)
+        pygame.draw.rect(pantalla, (11, 23, 37), marco, border_radius=3)
+        pygame.draw.rect(pantalla, (82, 110, 135), marco, 1, border_radius=3)
+        pygame.draw.rect(pantalla, (31, 51, 68), modulo, border_radius=2)
+        visor = pygame.Rect(modulo.x + 2, modulo.y + 2,
+                            max(3, modulo.width - 4), max(3, modulo.height - 4))
+        pygame.draw.rect(pantalla, (16, 32, 48), visor, border_radius=1)
+        pygame.draw.line(pantalla, (59, 91, 116), (visor.x + 1, visor.centery),
+                         (visor.right - 1, visor.centery), 1)
+        for tornillo_x in (marco.left + 2, marco.right - 2):
+            pygame.draw.circle(pantalla, (153, 170, 184), (tornillo_x, marco.centery), 1)
+        luz = VERDE if indice % 3 else AMARILLO
+        pygame.draw.circle(pantalla, luz, (visor.centerx, visor.y + 2), 1)
+
+def dibujar_marco_sala(sala):
+    """Traza el mamparo interior y remaches encima del suelo de la habitación."""
+    pygame.draw.rect(pantalla, (26, 43, 61), sala, 6, border_radius=10)
+    pygame.draw.rect(pantalla, PARED, sala, 2, border_radius=10)
+    marco_interior = sala.inflate(-8, -8)
+    pygame.draw.rect(pantalla, (78, 105, 129), marco_interior, 1, border_radius=8)
+    for x in range(sala.x + 36, sala.right - 24, 96):
+        pygame.draw.circle(pantalla, (121, 145, 164), (x, sala.y + 3), 1)
+        pygame.draw.circle(pantalla, (121, 145, 164), (x, sala.bottom - 3), 1)
 
 
 def dibujar_icono_sala(nombre, centro, color):
@@ -2328,6 +2348,7 @@ def dibujar_nave(tiempo):
         responsable_sala = next((j for j in jugadores_sala if en_sector(j)),
                                 jugadores_sala[0] if jugadores_sala else None)
         pygame.draw.rect(pantalla, (17, 32, 52), sala, border_radius=12)
+        dibujar_marco_sala(sala)
         dibujar_detalles_sala(nombre, sala, color, tiempo)
         dibujar_equipo_sala(nombre, sala, color, tiempo)
         if sala.width >= 400:
