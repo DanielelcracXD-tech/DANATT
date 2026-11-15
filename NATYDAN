@@ -5740,7 +5740,141 @@ def dibujar_nave(tiempo):
                                   ((10, 690), BLANCO, estroboscopica)):
         pygame.draw.circle(pantalla, mezclar(ACERO_OSC, color, 0.35 if not activa else 0.6), (x, y), 9)
         pygame.draw.circle(pantalla, color if activa else mezclar(ACERO_OSC, color, 0.3), (x, y), 4)
-    
+# =====================================================================
+# PUERTAS AUTOMÁTICAS
+# Usa las puertas que ya existen en el mapa (PUERTAS_EXTRA): cada una tiene
+# dos hojas correderas que se abren solas cuando un tripulante se acerca
+# y se cierran cuando se aleja. No cambia colisiones ni lógica del juego.
+# =====================================================================
+
+RADIO_PUERTA_X = 90          # distancia horizontal de detección
+RADIO_PUERTA_Y = 70          # distancia vertical de detección
+VELOCIDAD_PUERTA = 4.0       # apertura completa en ~0.25 s
+
+puertas_apertura = {}        # índice de puerta -> 0.0 (cerrada) .. 1.0 (abierta)
+_t_puertas_prev = None
+
+
+def _actualizar_puertas(tiempo):
+    """Abre las puertas con tripulantes cerca y cierra las demás."""
+    global _t_puertas_prev
+    if _t_puertas_prev is None:
+        dt = 0.0
+    else:
+        dt = max(0.0, min(0.1, tiempo - _t_puertas_prev))
+    _t_puertas_prev = tiempo
+    for i, puerta in enumerate(PUERTAS_EXTRA):
+        zona = puerta.inflate(RADIO_PUERTA_X, RADIO_PUERTA_Y)
+        cerca = any(zona.collidepoint(j.pies()) for j in jugadores)
+        a = puertas_apertura.get(i, 0.0)
+        if cerca:
+            a = min(1.0, a + dt * VELOCIDAD_PUERTA)
+        else:
+            a = max(0.0, a - dt * VELOCIDAD_PUERTA)
+        puertas_apertura[i] = a
+
+
+def _dibujar_puerta(puerta, a):
+    """Dibuja marco, luces y dos hojas correderas con apertura a (0..1)."""
+    cx, cy = puerta.centerx, puerta.centery
+    medio = (puerta.width - 10) // 2          # mitad del hueco libre
+    # Marco y rieles.
+    marco = pygame.Rect(cx - medio - 4, cy - 9, medio * 2 + 8, 18)
+    pygame.draw.rect(pantalla, (8, 16, 26), marco, border_radius=4)
+    pygame.draw.rect(pantalla, (96, 124, 148), marco, 1, border_radius=4)
+    # Hoja izquierda y derecha: se deslizan hacia los lados al abrirse.
+    ancho_hoja = 3 + int((medio - 3) * (1.0 - a))
+    hojas = (pygame.Rect(cx - medio, cy - 6, ancho_hoja, 12),
+             pygame.Rect(cx + medio - ancho_hoja, cy - 6, ancho_hoja, 12))
+    for lado, hoja in enumerate(hojas):
+        pygame.draw.rect(pantalla, (66, 90, 112), hoja, border_radius=2)
+        pygame.draw.rect(pantalla, (120, 146, 168), hoja, 1, border_radius=2)
+        # Franja de peligro en el borde que cierra al centro.
+        borde_x = hoja.right - 4 if lado == 0 else hoja.left
+        for k in range(0, 12, 4):
+            pygame.draw.rect(pantalla, AMARILLO if (k // 4) % 2 == 0 else (30, 24, 12),
+                             (borde_x, hoja.y + k, 4, 4))
+    # Línea de unión cuando está cerrada.
+    if a < 0.15:
+        pygame.draw.line(pantalla, (20, 34, 48), (cx, cy - 6), (cx, cy + 6), 1)
+    # Luces de estado: roja cerrada, verde abierta.
+    luz = mezclar(ROJO, VERDE, a)
+    for lx in (cx - medio - 1, cx + medio + 1):
+        pygame.draw.circle(pantalla, (12, 22, 34), (lx, cy - 12), 3)
+        pygame.draw.circle(pantalla, luz, (lx, cy - 12), 2)
+    # Resplandor al abrirse.
+    if 0.05 < a:
+        brillo = pygame.Rect(cx - medio, cy - 3, medio * 2, 6)
+        rect_alpha(pantalla, VERDE, brillo, 40 * a, 3)
+
+
+_dibujar_nave_sin_puertas = dibujar_nave
+
+
+def dibujar_nave(tiempo):
+    _dibujar_nave_sin_puertas(tiempo)
+    _actualizar_puertas(tiempo)
+    for i, puerta in enumerate(PUERTAS_EXTRA):
+        _dibujar_puerta(puerta, puertas_apertura.get(i, 0.0))   
+
+
+
+# =====================================================================
+# PAREDES SÓLIDAS EN LOS BORDES QUE TOCAN LOS PASILLOS
+# Cierra los bordes sala-pasillo que no tenían pared, dejando libres solo
+# los huecos de las puertas existentes (PUERTAS_EXTRA).
+# =====================================================================
+
+def _franja_sin_puertas(franja):
+    """Divide una franja de pared quitando los huecos de las puertas."""
+    piezas = [franja]
+    for puerta in PUERTAS_EXTRA:
+        if not puerta.colliderect(franja):
+            continue
+        nuevas = []
+        for q in piezas:
+            if not q.colliderect(puerta):
+                nuevas.append(q)
+                continue
+            if puerta.left > q.left:
+                nuevas.append(pygame.Rect(q.left, q.top, puerta.left - q.left, q.height))
+            if puerta.right < q.right:
+                nuevas.append(pygame.Rect(puerta.right, q.top, q.right - puerta.right, q.height))
+        piezas = nuevas
+    return [p for p in piezas if p.width > 0]
+
+
+MUROS_BORDE = []
+for _n in ("ENERGIA", "OXIGENO", "NAVEGACION"):          # tocan el pasillo superior (y=350)
+    _s = salas[_n]
+    MUROS_BORDE += _franja_sin_puertas(pygame.Rect(_s.x, _s.y - 4, _s.width, 8))
+for _n in ("COMEDOR", "GIMNASIO", "ALMACEN", "TALLER"):   # tocan el pasillo inferior (y=1070)
+    _s = salas[_n]
+    MUROS_BORDE += _franja_sin_puertas(pygame.Rect(_s.x, _s.y - 4, _s.width, 8))
+
+
+_hitbox_valida_original = hitbox_valida
+
+
+def hitbox_valida(caja):
+    """Igual que antes, pero ahora también bloquea las paredes de borde."""
+    return (_hitbox_valida_original(caja)
+            and not any(m.colliderect(caja) for m in MUROS_BORDE))
+
+
+_dibujar_nave_sin_muros = dibujar_nave
+
+
+def dibujar_nave(tiempo):
+    _dibujar_nave_sin_muros(tiempo)
+    for m in MUROS_BORDE:
+        pygame.draw.rect(pantalla, (26, 43, 61), m, border_radius=2)
+        pygame.draw.rect(pantalla, PARED, m, 1, border_radius=2)
+        pygame.draw.line(pantalla, (96, 124, 148), (m.x + 2, m.centery), (m.right - 3, m.centery), 1)
+
+
+
+
 
 if __name__ == "__main__":
     main()
