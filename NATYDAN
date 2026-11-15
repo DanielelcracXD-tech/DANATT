@@ -249,7 +249,7 @@ def _crear_superficie_rect_alpha(ancho, alto, color, alpha, radio, borde):
     return superficie
 
 
-@lru_cache(maxsize=64)
+@lru_cache(maxsize=32)
 def _superficie_rect_alpha(ancho, alto, color, alpha, radio, borde):
     return _crear_superficie_rect_alpha(ancho, alto, color, alpha, radio, borde)
 
@@ -258,7 +258,7 @@ def rect_alpha(destino, color, rect, alpha, radio=8, borde=0):
     """Dibuja un rectángulo redondeado con transparencia sobre una superficie."""
     color_rgb = tuple(color[:3])
     opacidad = max(0, min(255, int(alpha)))
-    if rect.width * rect.height <= 100_000:
+    if rect.width * rect.height <= 200_000:
         superficie = _superficie_rect_alpha(rect.width, rect.height, color_rgb, opacidad, radio, borde)
     else:
         superficie = _crear_superficie_rect_alpha(rect.width, rect.height, color_rgb, opacidad, radio, borde)
@@ -4961,10 +4961,13 @@ def dibujar_ficha(mouse, tiempo):
 
 
 dificultad = "dificil"
+dificultad_pendiente = None
 tripulacion_pendiente = 1
 minijuego = None
 
-botones_dificultad = [pygame.Rect(170, 190, 440, 330), pygame.Rect(670, 190, 440, 330)]
+botones_dificultad = [pygame.Rect(86, 155, 524, 315), pygame.Rect(670, 155, 524, 315)]
+boton_start_nivel = pygame.Rect(874, 530, 320, 82)
+boton_volver_nivel = pygame.Rect(86, 653, 152, 40)
 MJ = pygame.Rect(190, 100, 900, 520)
 
 TIPO_MINIJUEGO = {
@@ -5364,9 +5367,9 @@ def elegir_dificultad(nivel):
 def dibujar_dificultad(mouse, tiempo):
     dibujar_fondo(tiempo)
     rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 150, 0)
-    texto("SELECCIONA EL NIVEL", fuente_grande, BLANCO, (ANCHO // 2, 100), centro=True)
+    texto("ELIGE TU NIVEL", fuente_grande, BLANCO, (ANCHO // 2, 58), centro=True)
     texto(f"{tripulacion_pendiente} {'tripulante' if tripulacion_pendiente == 1 else 'tripulantes'}",
-          fuente_mini, SUAVE, (ANCHO // 2, 140), centro=True, sombra=False)
+          fuente_mini, SUAVE, (ANCHO // 2, 102), centro=True, sombra=False)
     datos = [
         ("FÁCIL", "1", "MINIJUEGOS", VERDE,
          ["Tareas interactivas:", "cables, secuencias, calibración,",
@@ -5375,27 +5378,79 @@ def dibujar_dificultad(mouse, tiempo):
          ["Tres preguntas por misión sobre la", "historia real del Apolo 13.",
           "Cada error castiga el sistema.", "Solo cuestionarios."]),
     ]
-    pulso = 0.5 + 0.5 * math.sin(tiempo * 4)
     for i, (nombre, tecla, sub, color, lineas) in enumerate(datos):
         caja = botones_dificultad[i]
+        nivel = "facil" if i == 0 else "dificil"
+        seleccionado = dificultad_pendiente == nivel
         hover = caja.collidepoint(mouse)
-        if hover:
-            rect_alpha(pantalla, color, caja.inflate(12, 12), 28 + 24 * pulso, 20)
+        if hover or seleccionado:
+            brillo = 36 if hover else 24
+            rect_alpha(pantalla, color, caja.inflate(12, 12), brillo, 20)
         rect_alpha(pantalla, (8, 18, 35), caja, 250, 18)
-        pygame.draw.rect(pantalla, color if hover else BORDE, caja, 2 if hover else 1, border_radius=18)
+        borde = color if hover or seleccionado else BORDE
+        grosor = 3 if seleccionado else 2 if hover else 1
+        pygame.draw.rect(pantalla, borde, caja, grosor, border_radius=18)
         pygame.draw.line(pantalla, color, (caja.x + 30, caja.y + 2), (caja.right - 30, caja.y + 2), 3)
         texto(f"[{tecla}]", fuente_mini_b, APAGADO, (caja.right - 24, caja.y + 20), derecha=True, sombra=False)
         texto(nombre, titulo, color, (caja.x + 30, caja.y + 26), sombra=False)
         texto(sub, fuente_mini_b, SUAVE, (caja.x + 32, caja.y + 106), sombra=False)
+        if seleccionado:
+            marca = pygame.Rect(caja.right - 154, caja.y + 22, 126, 26)
+            rect_alpha(pantalla, color, marca, 62, 8)
+            texto("SELECCIONADO", fuente_micro, BLANCO, marca.center, centro=True, sombra=False)
         for k, linea in enumerate(lineas):
             texto(linea, fuente_o, BLANCO, (caja.x + 32, caja.y + 144 + k * 26), sombra=False)
         if i == 0:
             for k, c in enumerate(COLORES_CABLE):
-                pygame.draw.circle(pantalla, c, (caja.x + 46 + k * 34, caja.bottom - 40), 11)
+                pygame.draw.circle(pantalla, c, (caja.x + 50 + k * 42, caja.bottom - 40), 11)
         else:
             texto("?  ?  ?", fuente_mediana, color, (caja.x + 32, caja.bottom - 58), sombra=False)
-    texto("Clic o pulsa 1 / 2   ·   ESC  volver", fuente_mini, APAGADO,
-          (ANCHO // 2, 580), centro=True, sombra=False)
+
+    panel_controles = pygame.Rect(86, 496, 740, 140)
+    rect_alpha(pantalla, PANEL_BG, panel_controles, 244, 14)
+    pygame.draw.rect(pantalla, (48, 77, 104), panel_controles, 1, border_radius=14)
+    pygame.draw.line(pantalla, AZUL, (panel_controles.x + 18, panel_controles.y + 1),
+                     (panel_controles.right - 18, panel_controles.y + 1), 2)
+    texto("CÓMO MOVERTE", fuente_mini_b, AZUL, (panel_controles.x + 20, panel_controles.y + 12),
+          sombra=False)
+    controles_visuales = ("W:↑ S:↓ A:← D:→", "↑ ↓ ← →", "I:↑ K:↓ J:← L:→", "T:↑ G:↓ F:← H:→")
+    for i in range(tripulacion_pendiente):
+        x = panel_controles.x + 18 + i * 174
+        pygame.draw.circle(pantalla, colores[i], (x + 5, panel_controles.y + 57), 4)
+        texto(f"J{i + 1}", fuente_micro, SUAVE, (x + 14, panel_controles.y + 50), sombra=False)
+        tecla = pygame.Rect(x + 38, panel_controles.y + 40, 130, 30)
+        pygame.draw.rect(pantalla, (15, 29, 48), tecla, border_radius=7)
+        pygame.draw.rect(pantalla, mezclar((48, 77, 104), colores[i], 0.45), tecla, 1, border_radius=7)
+        texto(controles_visuales[i], fuente_micro, BLANCO, tecla.center, centro=True, sombra=False)
+    teclas_accion = " / ".join(TECLAS_ACEPTAR_TEXTO[:tripulacion_pendiente])
+    texto(f"EN MISIÓN: {teclas_accion} acción   ·   M: mapa   ·   ESC: pausa",
+          fuente_micro, APAGADO, (panel_controles.x + 20, panel_controles.bottom - 27), sombra=False)
+
+    activo = dificultad_pendiente is not None
+    hover_start = activo and boton_start_nivel.collidepoint(mouse)
+    tono_start = AMARILLO if activo else BORDE
+    rect_alpha(pantalla, AMARILLO if hover_start else (22, 37, 56), boton_start_nivel,
+               255 if hover_start else 230, 12)
+    pygame.draw.rect(pantalla, tono_start, boton_start_nivel, 2, border_radius=12)
+    texto("START", fuente_mediana, (12, 22, 35) if hover_start else (BLANCO if activo else APAGADO),
+          (boton_start_nivel.centerx, boton_start_nivel.y + 25), centro=True, sombra=False)
+    texto("INICIAR MISIÓN  ·  ENTER", fuente_micro, SUAVE if activo else APAGADO,
+          (boton_start_nivel.centerx, boton_start_nivel.y + 56), centro=True, sombra=False)
+    if activo:
+        nombre_nivel = "FÁCIL" if dificultad_pendiente == "facil" else "DIFÍCIL"
+        texto(f"NIVEL: {nombre_nivel}", fuente_micro, AMARILLO,
+              (boton_start_nivel.centerx, boton_start_nivel.bottom + 13), centro=True, sombra=False)
+    else:
+        texto("ELIGE UNA TARJETA PARA CONTINUAR", fuente_micro, APAGADO,
+              (boton_start_nivel.centerx, boton_start_nivel.bottom + 13), centro=True, sombra=False)
+
+    hover_volver = boton_volver_nivel.collidepoint(mouse)
+    rect_alpha(pantalla, (30, 48, 68) if hover_volver else (16, 29, 45),
+               boton_volver_nivel, 235, 8)
+    pygame.draw.rect(pantalla, AZUL if hover_volver else BORDE, boton_volver_nivel, 1, border_radius=8)
+    texto("VOLVER", fuente_mini_b, BLANCO, boton_volver_nivel.center, centro=True, sombra=False)
+    texto("1 / 2: elegir   ·   ENTER o START: comenzar   ·   ESC: volver",
+          fuente_micro, APAGADO, (ANCHO - 86, 675), derecha=True, sombra=False)
 
 
 # ---------- bucle principal con selección de nivel y minijuegos ----------
@@ -6231,51 +6286,68 @@ def dibujar_diseno(dis, foco, listo, campos_j, val, mensaje, t):
     dibujar_fondo(t)
     rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 160, 0)
     texto("FASE 1 · DISEÑO DE MISIÓN", fuente_mediana, BLANCO, (24, 8), sombra=False)
-    texto(f"{val['esc']['nombre']}  ·  Meta: ciencia {val['meta_ciencia']} / datos {val['meta_datos']}"
-          f"  ·  Presupuesto {val['presupuesto']} créditos", fuente_mini, SUAVE, (24, 40), sombra=False)
-    texto("Cada rol decide su parte; todos deben pulsar LISTO con un diseño válido.", fuente_mini, APAGADO,
-          (ANCHO - 24, 14), derecha=True, sombra=False)
-
     n = len(jugadores)
-    gap = 10
-    w = (ANCHO - 48 - (n - 1) * gap) // n
+    paneles, filas_campos, botones_listo = _diseno_elementos(n, campos_j)
+    mouse = convertir_mouse(pygame.mouse.get_pos())
+    texto(dis_recortar(f"{val['esc']['nombre']}  ·  Meta: ciencia {val['meta_ciencia']} / datos "
+                       f"{val['meta_datos']}  ·  Presupuesto {val['presupuesto']} créditos",
+                       fuente_mini, ANCHO - 300),
+          fuente_mini, SUAVE, (24, 40), sombra=False)
+
     for i, j in enumerate(jugadores):
-        pr = pygame.Rect(24 + i * (w + gap), 62, w, 368)
+        pr = paneles[i]
         rect_alpha(pantalla, PANEL_BG, pr, 248, 12)
         pygame.draw.rect(pantalla, j.color if not listo[i] else VERDE, pr, 2 if listo[i] else 1, border_radius=12)
         nombres = []
         for c in campos_j[i]:
             if roles[c[2]] not in nombres:
                 nombres.append(roles[c[2]])
-        texto(f"{i + 1}. " + " + ".join(nombres).upper(), fuente_mini_b, j.color, (pr.x + 12, pr.y + 9), sombra=False)
-        texto(f"{TECLAS_TEXTO[i]} elegir/cambiar  ·  {TECLAS_ACEPTAR_TEXTO[i]} LISTO", fuente_micro, APAGADO,
-              (pr.x + 12, pr.y + 27), sombra=False)
-        ancha = w >= 380
-        y = pr.y + 46
-        for k, (clave, etq, rol) in enumerate(campos_j[i]):
+        titulo = f"{i + 1}. " + " + ".join(nombres).upper()
+        texto(dis_recortar(titulo, fuente_mini_b, pr.width - 24), fuente_mini_b, j.color,
+              (pr.x + 12, pr.y + 9), sombra=False)
+        teclas = f"{TECLAS_TEXTO[i]} · {TECLAS_ACEPTAR_TEXTO[i]} LISTO"
+        if n == 1:
+            teclas = "WASD / FLECHAS · E LISTO"
+        texto(teclas, fuente_micro, APAGADO, (pr.x + 12, pr.y + 27), sombra=False)
+        for k, ((clave, etq, rol), fila) in enumerate(zip(campos_j[i], filas_campos[i])):
             nombre, _ = dis_opciones(dis, clave)[dis[clave]]
             sel = k == foco[i]
-            alto = 22 if ancha else 38
-            fila = pygame.Rect(pr.x + 8, y, pr.width - 16, alto - 2)
             if sel:
                 rect_alpha(pantalla, AMARILLO, fila, 30, 6)
                 pygame.draw.rect(pantalla, AMARILLO, fila, 1, border_radius=6)
-            if ancha:
+            flecha_izq, flecha_der = _diseno_flechas(fila)
+            if pr.width >= 380:
                 texto(etq, fuente_micro, colores[rol], (fila.x + 8, fila.y + 4), sombra=False)
-                texto(("◄ " if sel else "") + dis_recortar(nombre, fuente_mini, w - 150) + (" ►" if sel else ""),
-                      fuente_mini, AMARILLO if sel else BLANCO, (fila.right - 8, fila.y + 2), derecha=True, sombra=False)
+                texto(dis_recortar(nombre, fuente_mini, fila.width - 150),
+                      fuente_mini, AMARILLO if sel else BLANCO,
+                      (flecha_izq.x - 6, fila.y + 2), derecha=True, sombra=False)
             else:
                 texto(etq, fuente_micro, colores[rol], (fila.x + 8, fila.y + 3), sombra=False)
-                texto(("◄ " if sel else "") + dis_recortar(nombre, fuente_mini, w - 56) + (" ►" if sel else ""),
-                      fuente_mini, AMARILLO if sel else BLANCO, (fila.x + 8, fila.y + 17), sombra=False)
-            y += alto
+                texto(dis_recortar(nombre, fuente_mini, fila.width - 64),
+                      fuente_mini, AMARILLO if sel else BLANCO, (fila.x + 8, fila.y + 18), sombra=False)
+            for caja, simbolo in ((flecha_izq, "‹"), (flecha_der, "›")):
+                hover = caja.collidepoint(mouse)
+                pygame.draw.rect(pantalla, (42, 63, 86) if hover else (18, 32, 50), caja,
+                                 border_radius=5)
+                pygame.draw.rect(pantalla, AMARILLO if hover or sel else BORDE, caja, 1, border_radius=5)
+                texto(simbolo, fuente_mini_b, BLANCO if hover or sel else SUAVE,
+                      caja.center, centro=True, sombra=False)
+
         clave_sel = campos_j[i][foco[i]][0]
         info = dis_opciones(dis, clave_sel)[dis[clave_sel]][1]
-        for li, linea in enumerate(partir_texto(info, fuente_micro, w - 24)[:5]):
-            texto(linea, fuente_micro, SUAVE, (pr.x + 12, pr.bottom - 88 + li * 13), sombra=False)
-        pygame.draw.circle(pantalla, VERDE if listo[i] else APAGADO, (pr.x + 18, pr.bottom - 14), 5)
-        texto("LISTO" if listo[i] else "PENDIENTE", fuente_mini_b, VERDE if listo[i] else APAGADO,
-              (pr.x + 30, pr.bottom - 22), sombra=False)
+        boton_listo = botones_listo[i]
+        info_y = max(pr.y + 254, filas_campos[i][-1].bottom + 7)
+        ancho_info = max(80, boton_listo.left - pr.x - 22)
+        for li, linea in enumerate(partir_texto(info, fuente_micro, ancho_info)[:3]):
+            texto(linea, fuente_micro, SUAVE, (pr.x + 12, info_y + li * 13), sombra=False)
+        hover = boton_listo.collidepoint(mouse) and val["ok"]
+        color_listo = VERDE if listo[i] else (AMARILLO if hover else AZUL)
+        rect_alpha(pantalla, color_listo if hover or listo[i] else (22, 38, 57),
+                   boton_listo, 250, 7)
+        pygame.draw.rect(pantalla, color_listo if val["ok"] else BORDE, boton_listo, 1, border_radius=7)
+        etiqueta_listo = "✓ LISTO" if listo[i] else "LISTO"
+        texto(etiqueta_listo, fuente_mini_b, (12, 24, 34) if hover else (BLANCO if val["ok"] else APAGADO),
+              boton_listo.center, centro=True, sombra=False)
 
     # Medidores en vivo (izquierda).
     texto("BALANCE DE MISIÓN", fuente_mini_b, AMARILLO, (24, 442), sombra=False)
@@ -6320,6 +6392,16 @@ def dibujar_diseno(dis, foco, listo, campos_j, val, mensaje, t):
         texto(mensaje, fuente_mini_b, AMARILLO, (24, 690), sombra=False)
     texto("ESC volver al menú   ·   F11 pantalla", fuente_micro, APAGADO, (ANCHO - 24, 696), derecha=True,
           sombra=False)
+    listo_total = sum(listo)
+    iniciar = val["ok"] and listo_total == n
+    hover_start = BOTON_START_DISENO.collidepoint(mouse) and iniciar
+    color_start = VERDE if iniciar else BORDE
+    rect_alpha(pantalla, AMARILLO if hover_start else (22, 39, 58),
+               BOTON_START_DISENO, 255 if hover_start else 235, 9)
+    pygame.draw.rect(pantalla, color_start, BOTON_START_DISENO, 2 if iniciar else 1, border_radius=9)
+    etiqueta_start = "START MISIÓN" if iniciar else f"START  {listo_total}/{n} LISTOS"
+    texto(etiqueta_start, fuente_mini_b, AMARILLO if iniciar else APAGADO,
+          BOTON_START_DISENO.center, centro=True, sombra=False)
 
 
 def pantalla_diseno():
@@ -7516,7 +7598,7 @@ def dibujar_minijuego(mouse, dt):
 
 def main():
     """Bucle principal: menú, opciones, tutorial, vuelo, repaso, minijuegos y resultados."""
-    global estado, tiempo_pausa, tripulacion_pendiente
+    global estado, tiempo_pausa, tripulacion_pendiente, dificultad_pendiente
     cargar_opciones()
     cargar_progreso()
     cargar_banco_extra()
@@ -7544,6 +7626,7 @@ def main():
                         for i, boton in enumerate(botones_menu):
                             if boton.collidepoint(pos):
                                 tripulacion_pendiente = i + 1
+                                dificultad_pendiente = None
                                 estado = "dificultad"
                                 break
                         else:
@@ -7556,6 +7639,7 @@ def main():
                         abrir_opciones("menu")
                     elif pygame.K_1 <= evento.key <= pygame.K_4:
                         tripulacion_pendiente = evento.key - pygame.K_0
+                        dificultad_pendiente = None
                         estado = "dificultad"
 
             elif estado == "opciones":
@@ -7567,17 +7651,26 @@ def main():
             elif estado == "dificultad":
                 if evento.type == pygame.KEYDOWN:
                     if evento.key in (pygame.K_1, pygame.K_KP1, pygame.K_f):
-                        elegir_dificultad("facil")
+                        dificultad_pendiente = "facil"
                     elif evento.key in (pygame.K_2, pygame.K_KP2, pygame.K_d):
-                        elegir_dificultad("dificil")
+                        dificultad_pendiente = "dificil"
+                    elif evento.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                        if dificultad_pendiente is not None:
+                            elegir_dificultad(dificultad_pendiente)
                     elif evento.key == pygame.K_ESCAPE:
+                        dificultad_pendiente = None
                         estado = "menu"
                 elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                     pos = convertir_mouse(evento.pos)
                     if botones_dificultad[0].collidepoint(pos):
-                        elegir_dificultad("facil")
+                        dificultad_pendiente = "facil"
                     elif botones_dificultad[1].collidepoint(pos):
-                        elegir_dificultad("dificil")
+                        dificultad_pendiente = "dificil"
+                    elif boton_start_nivel.collidepoint(pos) and dificultad_pendiente is not None:
+                        elegir_dificultad(dificultad_pendiente)
+                    elif boton_volver_nivel.collidepoint(pos):
+                        dificultad_pendiente = None
+                        estado = "menu"
 
             elif estado == "ficha":
                 manejar_evento_ficha(evento)
@@ -7761,10 +7854,46 @@ PRESET_PERFILES = [
     ("Económico", "gasta lo mínimo; poco margen ante imprevistos.", 0, 0),
     ("Científico", "prioriza ciencia y datos con presupuesto ampliado.", 2, 1),
 ]
-BOTON_PRESETS = pygame.Rect(ANCHO - 250, 34, 226, 24)
+BOTON_PRESETS = pygame.Rect(ANCHO - 470, 8, 220, 28)
+BOTON_START_DISENO = pygame.Rect(ANCHO - 218, 8, 194, 34)
 preset_actual = None
 preset_pos = ""
 _cache_presets = {}
+
+
+def _diseno_elementos(n, campos_j):
+    """Calcula paneles, filas y botones de rol con una distribución adaptable."""
+    gap = 10
+    ancho = (ANCHO - 48 - (n - 1) * gap) // n
+    paneles = [pygame.Rect(24 + i * (ancho + gap), 62, ancho, 368) for i in range(n)]
+    todas_filas = []
+    botones_listo = []
+    for panel, campos in zip(paneles, campos_j):
+        filas = []
+        if n == 1:
+            filas_columna = math.ceil(len(campos) / 2)
+            ancho_celda = (panel.width - 24) // 2
+            for k in range(len(campos)):
+                columna, fila = divmod(k, filas_columna)
+                x = panel.x + 8 + columna * (ancho_celda + 8)
+                y = panel.y + 47 + fila * 31
+                filas.append(pygame.Rect(x, y, ancho_celda, 28))
+        else:
+            alto_fila = 25 if panel.width >= 380 else 39
+            for k in range(len(campos)):
+                y = panel.y + 47 + k * alto_fila
+                filas.append(pygame.Rect(panel.x + 8, y, panel.width - 16, alto_fila - 2))
+        todas_filas.append(filas)
+        botones_listo.append(pygame.Rect(panel.right - 124, panel.bottom - 38, 112, 28))
+    return paneles, todas_filas, botones_listo
+
+
+def _diseno_flechas(fila):
+    """Devuelve los controles clicables para reducir o aumentar una opción."""
+    return (
+        pygame.Rect(fila.right - 46, fila.centery - 9, 20, 18),
+        pygame.Rect(fila.right - 23, fila.centery - 9, 20, 18),
+    )
 
 
 def _margen_minimo(v):
@@ -7860,21 +7989,59 @@ def pantalla_diseno():
     listo = [False] * n
     indices_preset = {}
     preset_actual, preset_pos = None, ""
-    mensaje = "¿No sabes por dónde empezar? Pulsa P para cargar un diseño recomendado."
+    mensaje = "Ajusta campos con flechas o clic; cada rol pulsa LISTO y luego START con Enter/Espacio."
     reloj = pygame.time.Clock()
     t = 0.0
     pygame.mouse.set_visible(True)
     while True:
         t += min(reloj.tick(60) / 1000, 0.05)
         val = dis_calcular(dis)
+        _, filas_campos, botones_listo = _diseno_elementos(n, campos_j)
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
-                if BOTON_PRESETS.collidepoint(convertir_mouse(evento.pos)):
+                pos = convertir_mouse(evento.pos)
+                val = dis_calcular(dis)
+                if BOTON_START_DISENO.collidepoint(pos):
+                    if val["ok"] and all(listo):
+                        return aplicar_diseno(dis, val)
+                    if not val["ok"]:
+                        mensaje = "START bloqueado: corrige primero las validaciones en rojo."
+                    else:
+                        mensaje = f"Faltan {n - sum(listo)} rol(es) por marcar LISTO."
+                    continue
+                if BOTON_PRESETS.collidepoint(pos):
                     mensaje = _siguiente_preset(dis, indices_preset, 1)
                     listo = [False] * n
+                    continue
+                atendido = False
+                for i, (filas, boton_listo) in enumerate(zip(filas_campos, botones_listo)):
+                    if boton_listo.collidepoint(pos):
+                        if not listo[i] and not val["ok"]:
+                            mensaje = "El diseño no es válido todavía; revisa las alertas rojas."
+                        else:
+                            listo[i] = not listo[i]
+                            mensaje = ""
+                        atendido = True
+                        break
+                    for k, fila in enumerate(filas):
+                        if fila.collidepoint(pos):
+                            foco[i] = k
+                            izquierda, derecha = _diseno_flechas(fila)
+                            if izquierda.collidepoint(pos) or derecha.collidepoint(pos):
+                                dis_cambiar(dis, campos_j[i][k][0],
+                                            -1 if izquierda.collidepoint(pos) else 1)
+                                listo = [False] * n
+                                preset_actual, preset_pos = None, ""
+                                mensaje = "Diseño personalizado; la tripulación debe revisar de nuevo."
+                            atendido = True
+                            break
+                    if atendido:
+                        break
+                if not atendido:
+                    mensaje = ""
                 continue
             if evento.type != pygame.KEYDOWN:
                 continue
@@ -7888,6 +8055,10 @@ def pantalla_diseno():
                 mensaje = _siguiente_preset(dis, indices_preset, -1 if retroceder else 1)
                 listo = [False] * n
                 continue
+            if k in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                val = dis_calcular(dis)
+                if val["ok"] and all(listo):
+                    return aplicar_diseno(dis, val)
             for i in range(n):
                 mapas = [(controles[i], TECLAS_ACEPTAR[i])]
                 if n == 1:
@@ -7904,14 +8075,13 @@ def pantalla_diseno():
                         mensaje = "Diseño personalizado."
                         preset_actual, preset_pos = None, ""
                     elif k == aceptar:
+                        val = dis_calcular(dis)
                         if not listo[i] and not val["ok"]:
                             mensaje = "El diseño aún incumple requisitos: revisa las líneas en rojo o pulsa P."
                         else:
                             listo[i] = not listo[i]
                             mensaje = ""
         val = dis_calcular(dis)
-        if all(listo) and val["ok"]:
-            return aplicar_diseno(dis, val)
         dibujar_diseno(dis, foco, listo, campos_j, val, mensaje, t)
         presentar_pantalla()
 
