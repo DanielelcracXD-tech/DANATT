@@ -299,59 +299,82 @@ class Jugador:
             self.y += dy
         self.rect.x = int(self.x)
         self.rect.y = int(self.y)
+        self.fase += dt * (14 if self.moviendo else 1.8)
         if self.moviendo:
-            self.fase += dt * 14
             self.polvo -= dt
             if self.polvo <= 0:
                 emitir(self.x + 14, self.y + 35, (70, 92, 120), 1, 28, 0.45, 2)
                 self.polvo = 0.1
 
     def dibujar(self, resaltado=False):
-        x, y = self.rect.x, self.rect.y
+        y = self.rect.y
         cx = self.rect.centerx
-        bob = int(math.sin(self.fase) * 1.6) if self.moviendo else 0
-        swing = int(math.sin(self.fase) * 3) if self.moviendo else 0
-        yb = y + bob
-        escala_sprite = 4
+        bob = math.sin(self.fase) * (1.3 if self.moviendo else 0.8)
+        swing = math.sin(self.fase) * 3 if self.moviendo else math.sin(self.fase * 0.7) * 0.5
+        escala_sprite = 6
         sprite = pygame.Surface((self.rect.width * escala_sprite, self.rect.height * escala_sprite),
                                 pygame.SRCALPHA)
         def caja(color, rect, radio=0):
-            pygame.draw.rect(sprite, color, tuple(v * escala_sprite for v in rect),
+            pygame.draw.rect(sprite, color, tuple(round(v * escala_sprite) for v in rect),
                              border_radius=radio * escala_sprite)
         def linea(color, inicio, fin, ancho):
-            pygame.draw.line(sprite, color, tuple(v * escala_sprite for v in inicio),
-                             tuple(v * escala_sprite for v in fin), ancho * escala_sprite)
+            pygame.draw.line(sprite, color, tuple(round(v * escala_sprite) for v in inicio),
+                             tuple(round(v * escala_sprite) for v in fin), max(1, ancho * escala_sprite))
         def ovalo(color, rect):
-            pygame.draw.ellipse(sprite, color, tuple(v * escala_sprite for v in rect))
+            pygame.draw.ellipse(sprite, color, tuple(round(v * escala_sprite) for v in rect))
 
-        ovalo((4, 9, 18, 150), (2, 31, 24, 5))
-        caja((20, 33, 51), (2, 18, 7, 13), 3)
-        caja((39, 57, 75), (20, 19, 6, 11), 3)
-        linea((31, 47, 64), (22, 21), (22, 28), 1)
+        # Mochila, botas y brazos quedan bajo el traje para conservar una silueta suave.
+        ovalo((4, 9, 18, 115), (2, 31, 24, 5))
+        caja((20, 35, 51), (2, 17, 7, 14), 3)
+        caja((34, 50, 67), (20, 19, 6, 12), 3)
+        linea((31, 47, 64), (22, 20), (22, 28), 1)
+        linea((40, 58, 76), (8, 22), (4, 27), 4)
+        linea((40, 58, 76), (21, 22), (25, 27), 4)
         linea((51, 65, 81), (10, 28), (9 + swing, 33), 4)
         linea((51, 65, 81), (19, 28), (20 - swing, 33), 4)
-        ovalo((199, 215, 227), (7 + swing, 31, 6, 4))
-        ovalo((199, 215, 227), (18 - swing, 31, 6, 4))
-        linea((40, 58, 76), (8, 22), (4, 26), 4)
-        linea((40, 58, 76), (21, 22), (25, 26), 4)
+        ovalo((199, 215, 227), (7 + swing, 31, 7, 4))
+        ovalo((199, 215, 227), (18 - swing, 31, 7, 4))
+
+        # Silueta acolchada, con paneles y costuras del traje.
         caja((23, 38, 56), (5, 15, 19, 18), 7)
-        caja(self.color, (7, 16, 15, 15), 6)
-        linea(mezclar(self.color, BLANCO, 0.45), (9, 19), (9, 27), 2)
-        caja((27, 45, 62), (11, 22, 7, 6), 2)
-        caja(mezclar(self.color, BLANCO, 0.72), (12, 23, 5, 4), 1)
-        ovalo((16, 29, 47), (5, 2, 18, 18))
-        ovalo(self.color, (6, 3, 16, 16))
-        ovalo((34, 76, 105), (7, 6, 14, 8))
-        linea((165, 219, 239), (9, 7), (18, 7), 1)
-        caja((211, 228, 239), (7, 14, 14, 2), 1)
-        sprite = pygame.transform.smoothscale(sprite, self.rect.size)
-        pantalla.blit(sprite, (x, yb))
+        caja(mezclar((23, 38, 56), self.color, 0.88), (6, 16, 17, 15), 6)
+        linea(mezclar(self.color, BLANCO, 0.5), (8, 19), (8, 27), 2)
+        linea(mezclar(self.color, BLANCO, 0.35), (21, 19), (21, 27), 1)
+        caja((23, 39, 55), (10, 21, 9, 8), 2)
+        caja((46, 67, 83), (11, 22, 7, 6), 2)
+        pygame.draw.circle(sprite, mezclar(self.color, BLANCO, 0.68),
+                           (15 * escala_sprite, 25 * escala_sprite), 2 * escala_sprite)
+        pygame.draw.circle(sprite, (105, 220, 245),
+                           (19 * escala_sprite, 24 * escala_sprite),
+                           max(2, round((1.0 + 0.45 * math.sin(self.fase * 2)) * escala_sprite)))
+
+        # Casco con borde, visor sombreado y reflejo móvil.
+        ovalo((12, 23, 39), (4, 1, 20, 20))
+        ovalo((31, 56, 76), (5, 2, 18, 18))
+        ovalo((11, 25, 43), (7, 4, 14, 13))
+        ovalo((34, 78, 105), (8, 5, 12, 9))
+        reflejo = 9 + math.sin(self.fase * 0.55) * 1.5
+        pygame.draw.aaline(sprite, (194, 235, 248),
+                           (reflejo * escala_sprite, 6 * escala_sprite),
+                           ((reflejo + 5) * escala_sprite, 6 * escala_sprite))
+        pygame.draw.aaline(sprite, (96, 163, 191),
+                           (9 * escala_sprite, 8 * escala_sprite),
+                           (10 * escala_sprite, 11 * escala_sprite))
+        pygame.draw.line(sprite, (211, 228, 239),
+                         (8 * escala_sprite, 15 * escala_sprite),
+                         (21 * escala_sprite, 15 * escala_sprite), escala_sprite)
+
+        tamano_sprite = (34, 44)
+        sprite = pygame.transform.smoothscale(sprite, tamano_sprite)
+        x_sprite = round(cx - tamano_sprite[0] / 2)
+        y_sprite = round(self.rect.bottom - tamano_sprite[1] + bob)
+        pantalla.blit(sprite, (x_sprite, y_sprite))
         col = self.color if resaltado else mezclar(self.color, BLANCO, 0.35)
-        texto(self.nombre, fuente_mini_b if resaltado else fuente_mini, col, (cx, y - 9), centro=True)
+        texto(self.nombre, fuente_mini_b if resaltado else fuente_mini, col, (cx, y - 26), centro=True)
         if resaltado:
-            sube = int(math.sin(pygame.time.get_ticks() / 160) * 2)
-            pygame.draw.polygon(pantalla, self.color, [(cx - 4, y - 22 + sube), (cx + 4, y - 22 + sube),
-                                                       (cx, y - 17 + sube)])
+            sube = int(math.sin(self.fase * 1.3) * 2)
+            pygame.draw.polygon(pantalla, self.color, [(cx - 4, y - 35 + sube), (cx + 4, y - 35 + sube),
+                                                       (cx, y - 30 + sube)])
 
 
 # ====================
@@ -716,6 +739,11 @@ botones_pausa = [pygame.Rect(388, 460, 504, 54), pygame.Rect(388, 528, 504, 48)]
 ESTRELLAS = [(random.randrange(ANCHO), random.randrange(ALTO), random.choice((1, 1, 2)),
               random.random() * math.tau) for _ in range(120)]
 METEOROS = [(random.randrange(100, 900), random.randrange(60, 300)) for _ in range(4)]
+MOTAS_CORREDOR = [
+    (random.uniform(PASILLO.x + 24, PASILLO.right - 24), random.random(),
+     random.uniform(5, 11), random.random() * math.tau)
+    for _ in range(20)
+]
 
 
 def fmt_puntos(valor):
@@ -827,7 +855,7 @@ def crear_jugadores(total):
     met_vis = misiones[0]["met"]
     proximo_evento = random.uniform(EVENTO_MIN, EVENTO_MAX)
     asignacion = asignar_misiones(total)
-    posiciones = [(160, 480), (300, 480), (160, 565), (300, 565)]
+    posiciones = [(160, 496), (300, 496), (160, 568), (300, 568)]
     for i in range(total):
         x, y = posiciones[i]
         jugadores.append(Jugador(x, y, colores[i], roles[i]))
@@ -1116,13 +1144,17 @@ def dibujar_icono_sala(nombre, centro, color):
         pygame.draw.line(pantalla, color, (cx - 16, cy + 13), (cx + 16, cy + 13), 2)
 
 
-def dibujar_equipo_sala(nombre, sala, color):
+def dibujar_equipo_sala(nombre, sala, color, tiempo):
     equipo = pygame.Rect(sala.right - 76, sala.bottom - 49, 62, 38)
     pygame.draw.rect(pantalla, (10, 22, 38), equipo, border_radius=5)
     pygame.draw.rect(pantalla, (44, 67, 87), equipo, 1, border_radius=5)
     pantalla_color = mezclar((15, 29, 48), color, 0.28)
     visor = pygame.Rect(equipo.x + 5, equipo.y + 5, 52, 18)
     pygame.draw.rect(pantalla, pantalla_color, visor, border_radius=3)
+    avance = (tiempo * 24 + sala.x) % max(1, visor.width - 10)
+    barrido_x = visor.x + 5 + int(avance)
+    pygame.draw.line(pantalla, mezclar(pantalla_color, color, 0.65),
+                     (barrido_x, visor.y + 3), (barrido_x, visor.bottom - 3), 1)
     pygame.draw.line(pantalla, (46, 67, 84), (equipo.x + 7, equipo.y + 29),
                      (equipo.right - 7, equipo.y + 29), 1)
 
@@ -1159,8 +1191,14 @@ def dibujar_equipo_sala(nombre, sala, color):
                   (visor.x + 25, cy + 5), (visor.x + 33, cy - 3), (visor.right - 5, cy - 3)]
         pygame.draw.lines(pantalla, color, False, puntos, 1)
     for i in range(3):
-        pygame.draw.circle(pantalla, color if i == 0 else (59, 78, 96),
-                           (equipo.x + 15 + i * 16, equipo.y + 34), 2)
+        brillo = 0.5 + 0.5 * math.sin(tiempo * 3.2 + i * 2.1 + sala.x * 0.01)
+        encendida = brillo > 0.72
+        luz = mezclar((39, 57, 76), color, 0.2 + 0.8 * brillo)
+        centro_luz = (equipo.x + 15 + i * 16, equipo.y + 34)
+        pygame.draw.circle(pantalla, luz if encendida else (59, 78, 96),
+                           centro_luz, 3 if encendida else 2)
+        if encendida:
+            pygame.draw.circle(pantalla, luz, centro_luz, 4, 1)
 
 
 def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
@@ -1234,6 +1272,15 @@ def dibujar_nave(tiempo):
         pygame.draw.line(pantalla, (32, 50, 70), (MAPA.right - 17, y), (MAPA.right - 8, y), 2)
 
     dibujar_paredes()
+    for x, semilla, velocidad, fase in MOTAS_CORREDOR:
+        y = PASILLO.y + 10 + ((semilla * (PASILLO.height - 20) + tiempo * velocidad)
+                              % (PASILLO.height - 20))
+        px = x + math.sin(tiempo * 0.65 + fase) * 5
+        brillo = 0.45 + 0.4 * (0.5 + 0.5 * math.sin(tiempo * 2.0 + fase))
+        tono = mezclar((18, 38, 57), (104, 173, 208), brillo)
+        pygame.draw.circle(pantalla, tono, (round(px), round(y)), 1)
+        if brillo > 0.78:
+            pygame.draw.circle(pantalla, tono, (round(px) + 1, round(y) - 1), 1)
     puente = [(640, 130), (750, 169), (530, 169)]
     pygame.draw.polygon(pantalla, (11, 25, 41), puente)
     pygame.draw.polygon(pantalla, (77, 111, 139), puente, 2)
@@ -1245,10 +1292,21 @@ def dibujar_nave(tiempo):
     dibujar_modulo_auxiliar(pygame.Rect(1166, 220, 88, 128), "CELDAS FC", "celdas", AMARILLO)
     dibujar_modulo_auxiliar(pygame.Rect(26, 456, 88, 170), "ESCLUSA EVA", "esclusa", AZUL)
     dibujar_modulo_auxiliar(pygame.Rect(1166, 456, 88, 170), "RCS", "propulsores", ROJO_CLARO)
-    for x in (470, 640, 810):
+    for i, x in enumerate((470, 640, 810)):
+        fase_motor = tiempo * 12 + i * 2.1
+        impulso = 0.5 + 0.5 * math.sin(fase_motor)
         pygame.draw.ellipse(pantalla, (13, 26, 41), (x - 28, 652, 56, 34))
         pygame.draw.ellipse(pantalla, (84, 111, 134), (x - 21, 657, 42, 24), 2)
         pygame.draw.ellipse(pantalla, (28, 59, 80), (x - 10, 663, 20, 12))
+        largo_pluma = 10 + int(8 * impulso)
+        pygame.draw.polygon(pantalla, (30, 78, 112), [
+            (x - 8, 680), (x + 8, 680), (x + 4, 680 + largo_pluma),
+            (x, 686 + largo_pluma), (x - 4, 680 + largo_pluma),
+        ])
+        pygame.draw.polygon(pantalla, mezclar((48, 113, 151), (154, 222, 241), impulso), [
+            (x - 3, 680), (x + 3, 680), (x + 1, 680 + int(largo_pluma * 0.62)),
+            (x, 683 + int(largo_pluma * 0.62)), (x - 1, 680 + int(largo_pluma * 0.62)),
+        ])
 
     # Paneles de presión y cableado en el corredor central.
     pygame.draw.line(pantalla, (34, 54, 75), (PASILLO.x + 12, PASILLO.y + 8),
@@ -1265,7 +1323,7 @@ def dibujar_nave(tiempo):
         indices = [i for i, m in enumerate(misiones) if m["sala"] == nombre]
         activa = objetivo is not None and objetivo["sala"] == nombre
         pygame.draw.rect(pantalla, (17, 32, 52), sala, border_radius=12)
-        dibujar_equipo_sala(nombre, sala, color)
+        dibujar_equipo_sala(nombre, sala, color, tiempo)
         # Consola mural compacta, como el instrumental de cada estación.
         consola = pygame.Rect(sala.x + 14, sala.y + 54, 38, 31)
         pygame.draw.rect(pantalla, (11, 23, 39), consola, border_radius=4)
@@ -1303,7 +1361,7 @@ def dibujar_nave(tiempo):
             if en_sector():
                 a = int(150 + 105 * pulso)
                 texto("[E]  ABRIR FORMULARIO", fuente_mini_b, (a, int(a * 0.75), 75),
-                      (sala.centerx, sala.centery + 6), centro=True)
+                      (sala.centerx, sala.bottom - 24), centro=True)
             else:
                 texto(asignacion[mision_actual].upper(), fuente_mini, mezclar(APAGADO, BLANCO, 0.5),
                       (sala.centerx, sala.centery + 6), centro=True)
