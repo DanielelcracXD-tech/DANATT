@@ -21,6 +21,7 @@ import json
 import random
 import sys
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 import os
 import pygame
@@ -63,6 +64,7 @@ MUNDO_ALTO = 1380
 pantalla_completa = True
 ventana = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 pantalla = pygame.Surface((ANCHO, ALTO))
+superficie_escalada = None
 pygame.display.set_caption("Apollo 13")
 clock = pygame.time.Clock()
 
@@ -97,12 +99,13 @@ flash_rojo = 0.0
 
 def cambiar_modo_pantalla():
     """Alterna entre pantalla completa y ventana redimensionable."""
-    global ventana, pantalla_completa
+    global ventana, pantalla_completa, superficie_escalada
     pantalla_completa = not pantalla_completa
     if pantalla_completa:
         ventana = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
     else:
         ventana = pygame.display.set_mode((ANCHO, ALTO), pygame.RESIZABLE)
+    superficie_escalada = None
 
 
 def _vista():
@@ -122,13 +125,21 @@ def convertir_mouse(posicion):
 
 def presentar_pantalla():
     """Escala y presenta el lienzo lógico, aplicando sacudida si hay un impacto."""
+    global superficie_escalada
     _, w, h, ox, oy = _vista()
     ventana.fill((0, 0, 0))
     dx = dy = 0
     if sacudida > 0:
         a = min(1.0, sacudida * 3) * 7
         dx, dy = int(random.uniform(-a, a)), int(random.uniform(-a, a))
-    ventana.blit(pygame.transform.smoothscale(pantalla, (w, h)), (ox + dx, oy + dy))
+    if (w, h) == pantalla.get_size():
+        imagen = pantalla
+    else:
+        if superficie_escalada is None or superficie_escalada.get_size() != (w, h):
+            superficie_escalada = pygame.Surface((w, h)).convert()
+        pygame.transform.smoothscale(pantalla, (w, h), superficie_escalada)
+        imagen = superficie_escalada
+    ventana.blit(imagen, (ox + dx, oy + dy))
     pygame.display.flip()
 
 
@@ -162,6 +173,11 @@ capa_mapa_zoom = pygame.Surface((round(ANCHO_RECORTE * ZOOM_MAPA),
 camara_mapa = [MAPA.left * ZOOM_MAPA, MAPA.top * ZOOM_MAPA]
 camara_multijugador = []
 capas_mapa_zoom = {}
+_versiones_capa_zoom = {}
+_capa_mapa_version = 0
+_mapa_general_surface = None
+_mapa_general_version = -1
+_mapa_general_size = None
 AREA_VISTA_MULTIJUGADOR = pygame.Rect(0, 128, ANCHO, ALTO - 164)
 boton_cerrar_mapa = pygame.Rect(1070, 46, 156, 34)
 
@@ -188,11 +204,17 @@ def suave(t):
     return 1 - (1 - t) ** 3
 
 
+@lru_cache(maxsize=2048)
+def _renderizar_texto(cadena, fnt, color):
+    return fnt.render(cadena, True, color)
+
+
 def texto(cadena, fnt, color, pos, centro=False, derecha=False, sombra=True):
     """Dibuja texto alineado en el lienzo y devuelve el rectángulo que ocupa."""
     if not cadena:
         return pygame.Rect(pos[0], pos[1], 0, 0)
-    img = fnt.render(cadena, True, color)
+    color = tuple(color)
+    img = _renderizar_texto(cadena, fnt, color)
     r = img.get_rect()
     if centro:
         r.center = pos
@@ -201,7 +223,7 @@ def texto(cadena, fnt, color, pos, centro=False, derecha=False, sombra=True):
     else:
         r.topleft = pos
     if sombra:
-        pantalla.blit(fnt.render(cadena, True, (2, 5, 12)), r.move(1, 1))
+        pantalla.blit(_renderizar_texto(cadena, fnt, (2, 5, 12)), r.move(1, 1))
     pantalla.blit(img, r)
     return r
 
@@ -221,12 +243,26 @@ def partir_texto(cadena, fnt, ancho):
     return lineas
 
 
+def _crear_superficie_rect_alpha(ancho, alto, color, alpha, radio, borde):
+    superficie = pygame.Surface((ancho, alto), pygame.SRCALPHA)
+    pygame.draw.rect(superficie, (*color, alpha), superficie.get_rect(), borde, border_radius=radio)
+    return superficie
+
+
+@lru_cache(maxsize=64)
+def _superficie_rect_alpha(ancho, alto, color, alpha, radio, borde):
+    return _crear_superficie_rect_alpha(ancho, alto, color, alpha, radio, borde)
+
+
 def rect_alpha(destino, color, rect, alpha, radio=8, borde=0):
     """Dibuja un rectángulo redondeado con transparencia sobre una superficie."""
-    s = pygame.Surface(rect.size, pygame.SRCALPHA)
-    pygame.draw.rect(s, (color[0], color[1], color[2], max(0, min(255, int(alpha)))),
-                     s.get_rect(), borde, border_radius=radio)
-    destino.blit(s, rect.topleft)
+    color_rgb = tuple(color[:3])
+    opacidad = max(0, min(255, int(alpha)))
+    if rect.width * rect.height <= 100_000:
+        superficie = _superficie_rect_alpha(rect.width, rect.height, color_rgb, opacidad, radio, borde)
+    else:
+        superficie = _crear_superficie_rect_alpha(rect.width, rect.height, color_rgb, opacidad, radio, borde)
+    destino.blit(superficie, rect.topleft)
 
 
 def fmt_met(seg):
@@ -382,6 +418,77 @@ def hitbox_valida(caja):
             and punto_caminable(caja.left, caja.bottom - 1)
             and punto_caminable(caja.right - 1, caja.bottom - 1))
 
+
+# El traje usa poses cacheadas; el desplazamiento del jugador sigue siendo continuo.
+PASOS_FASE_TRAJE = 32
+
+
+@lru_cache(maxsize=256)
+def _sprite_tripulante(color, fase_indice, moviendo):
+    fase = fase_indice * math.tau / PASOS_FASE_TRAJE
+    swing = math.sin(fase) * 3 if moviendo else math.sin(fase * 0.7) * 0.5
+    escala_sprite = 6
+    sprite = pygame.Surface((28 * escala_sprite, 36 * escala_sprite), pygame.SRCALPHA)
+
+    def caja(tono, rect, radio=0):
+        pygame.draw.rect(sprite, tono, tuple(round(v * escala_sprite) for v in rect),
+                         border_radius=radio * escala_sprite)
+
+    def linea(tono, inicio, fin, ancho):
+        pygame.draw.line(sprite, tono, tuple(round(v * escala_sprite) for v in inicio),
+                         tuple(round(v * escala_sprite) for v in fin), max(1, ancho * escala_sprite))
+
+    def ovalo(tono, rect):
+        pygame.draw.ellipse(sprite, tono, tuple(round(v * escala_sprite) for v in rect))
+
+    ovalo((4, 9, 18, 115), (2, 31, 24, 5))
+    caja((20, 35, 51), (2, 17, 7, 14), 3)
+    caja((34, 50, 67), (20, 19, 6, 12), 3)
+    linea((31, 47, 64), (22, 20), (22, 28), 1)
+    linea((40, 58, 76), (8, 22), (4, 27), 4)
+    linea((40, 58, 76), (21, 22), (25, 27), 4)
+    linea((51, 65, 81), (10, 28), (9 + swing, 33), 4)
+    linea((51, 65, 81), (19, 28), (20 - swing, 33), 4)
+    ovalo((199, 215, 227), (7 + swing, 31, 7, 4))
+    ovalo((199, 215, 227), (18 - swing, 31, 7, 4))
+
+    caja((23, 38, 56), (5, 15, 19, 18), 7)
+    caja(mezclar((23, 38, 56), color, 0.88), (6, 16, 17, 15), 6)
+    linea(mezclar(color, BLANCO, 0.5), (8, 19), (8, 27), 2)
+    linea(mezclar(color, BLANCO, 0.35), (21, 19), (21, 27), 1)
+    caja((23, 39, 55), (10, 21, 9, 8), 2)
+    caja((46, 67, 83), (11, 22, 7, 6), 2)
+    caja((13, 25, 40), (6, 18, 5, 5), 1)
+    linea(mezclar(color, BLANCO, 0.7), (7, 19), (10, 19), 1)
+    linea((153, 177, 194), (8, 30), (20, 30), 1)
+    pygame.draw.circle(sprite, (34, 94, 129), (19 * escala_sprite, 24 * escala_sprite),
+                       4 * escala_sprite)
+    pygame.draw.circle(sprite, mezclar(color, BLANCO, 0.68),
+                       (15 * escala_sprite, 25 * escala_sprite), 2 * escala_sprite)
+    pygame.draw.circle(sprite, (105, 220, 245),
+                       (19 * escala_sprite, 24 * escala_sprite),
+                       max(2, round((1.0 + 0.45 * math.sin(fase * 2)) * escala_sprite)))
+
+    ovalo((12, 23, 39), (4, 1, 20, 20))
+    ovalo((31, 56, 76), (5, 2, 18, 18))
+    ovalo((11, 25, 43), (7, 4, 14, 13))
+    ovalo((34, 78, 105), (8, 5, 12, 9))
+    reflejo = 9 + math.sin(fase * 0.55) * 1.5
+    pygame.draw.aaline(sprite, (194, 235, 248),
+                       (reflejo * escala_sprite, 6 * escala_sprite),
+                       ((reflejo + 5) * escala_sprite, 6 * escala_sprite))
+    pygame.draw.aaline(sprite, (96, 163, 191),
+                       (9 * escala_sprite, 8 * escala_sprite),
+                       (10 * escala_sprite, 11 * escala_sprite))
+    pygame.draw.aaline(sprite, (142, 194, 215),
+                       (8 * escala_sprite, 10 * escala_sprite),
+                       (11 * escala_sprite, 6 * escala_sprite))
+    pygame.draw.line(sprite, (211, 228, 239),
+                     (8 * escala_sprite, 15 * escala_sprite),
+                     (21 * escala_sprite, 15 * escala_sprite), escala_sprite)
+    return pygame.transform.smoothscale(sprite, (34, 44)).convert_alpha()
+
+
 # JUGADOR
 
 class Jugador:
@@ -467,68 +574,9 @@ class Jugador:
         y = self.rect.y
         cx = self.rect.centerx
         bob = math.sin(self.fase) * (1.3 if self.moviendo else 0.8)
-        swing = math.sin(self.fase) * 3 if self.moviendo else math.sin(self.fase * 0.7) * 0.5
-        escala_sprite = 6
-        sprite = pygame.Surface((self.rect.width * escala_sprite, self.rect.height * escala_sprite),
-                                pygame.SRCALPHA)
-
-        def caja(color, rect, radio=0):
-            """Dibuja una pieza rectangular en las coordenadas del sprite ampliado."""
-            pygame.draw.rect(sprite, color, tuple(round(v * escala_sprite) for v in rect),
-                             border_radius=radio * escala_sprite)
-
-        def linea(color, inicio, fin, ancho):
-            """Dibuja una línea del traje con grosor ajustado a la escala interna."""
-            pygame.draw.line(sprite, color, tuple(round(v * escala_sprite) for v in inicio),
-                             tuple(round(v * escala_sprite) for v in fin), max(1, ancho * escala_sprite))
-
-        def ovalo(color, rect):
-            """Dibuja una elipse del traje en las coordenadas del sprite ampliado."""
-            pygame.draw.ellipse(sprite, color, tuple(round(v * escala_sprite) for v in rect))
-
-        # Mochila, botas y brazos quedan bajo el traje para conservar una silueta suave.
-        ovalo((4, 9, 18, 115), (2, 31, 24, 5))
-        caja((20, 35, 51), (2, 17, 7, 14), 3)
-        caja((34, 50, 67), (20, 19, 6, 12), 3)
-        linea((31, 47, 64), (22, 20), (22, 28), 1)
-        linea((40, 58, 76), (8, 22), (4, 27), 4)
-        linea((40, 58, 76), (21, 22), (25, 27), 4)
-        linea((51, 65, 81), (10, 28), (9 + swing, 33), 4)
-        linea((51, 65, 81), (19, 28), (20 - swing, 33), 4)
-        ovalo((199, 215, 227), (7 + swing, 31, 7, 4))
-        ovalo((199, 215, 227), (18 - swing, 31, 7, 4))
-
-        # Silueta acolchada, con paneles y costuras del traje.
-        caja((23, 38, 56), (5, 15, 19, 18), 7)
-        caja(mezclar((23, 38, 56), self.color, 0.88), (6, 16, 17, 15), 6)
-        linea(mezclar(self.color, BLANCO, 0.5), (8, 19), (8, 27), 2)
-        linea(mezclar(self.color, BLANCO, 0.35), (21, 19), (21, 27), 1)
-        caja((23, 39, 55), (10, 21, 9, 8), 2)
-        caja((46, 67, 83), (11, 22, 7, 6), 2)
-        pygame.draw.circle(sprite, mezclar(self.color, BLANCO, 0.68),
-                           (15 * escala_sprite, 25 * escala_sprite), 2 * escala_sprite)
-        pygame.draw.circle(sprite, (105, 220, 245),
-                           (19 * escala_sprite, 24 * escala_sprite),
-                           max(2, round((1.0 + 0.45 * math.sin(self.fase * 2)) * escala_sprite)))
-
-        # Casco con borde, visor sombreado y reflejo móvil.
-        ovalo((12, 23, 39), (4, 1, 20, 20))
-        ovalo((31, 56, 76), (5, 2, 18, 18))
-        ovalo((11, 25, 43), (7, 4, 14, 13))
-        ovalo((34, 78, 105), (8, 5, 12, 9))
-        reflejo = 9 + math.sin(self.fase * 0.55) * 1.5
-        pygame.draw.aaline(sprite, (194, 235, 248),
-                           (reflejo * escala_sprite, 6 * escala_sprite),
-                           ((reflejo + 5) * escala_sprite, 6 * escala_sprite))
-        pygame.draw.aaline(sprite, (96, 163, 191),
-                           (9 * escala_sprite, 8 * escala_sprite),
-                           (10 * escala_sprite, 11 * escala_sprite))
-        pygame.draw.line(sprite, (211, 228, 239),
-                         (8 * escala_sprite, 15 * escala_sprite),
-                         (21 * escala_sprite, 15 * escala_sprite), escala_sprite)
-
         tamano_sprite = (34, 44)
-        sprite = pygame.transform.smoothscale(sprite, tamano_sprite)
+        fase_indice = int((self.fase % math.tau) / math.tau * PASOS_FASE_TRAJE)
+        sprite = _sprite_tripulante(tuple(self.color), fase_indice, self.moviendo)
         entrada = self.entrada_restante > 0
         if entrada:
             progreso = suave(1.0 - self.entrada_restante)
@@ -543,6 +591,8 @@ class Jugador:
         if self.dano_restante > 0:
             x_sprite += round(math.sin(self.dano_restante * 55) * 4)
             if int(self.dano_restante * 18) % 2:
+                if not entrada:
+                    sprite = sprite.copy()
                 sprite.fill((255, 95, 95, 0), special_flags=pygame.BLEND_RGBA_ADD)
         pantalla.blit(sprite, (x_sprite, y_sprite))
         if entrada:
@@ -564,8 +614,10 @@ class Jugador:
                                  (cx + 17, burbuja_y + 2), 2)
                 pygame.draw.circle(pantalla, color_accion, (cx + 17, burbuja_y + 3), 2)
         col = self.color if resaltado else mezclar(self.color, BLANCO, 0.35)
-        nombre_img = (fuente_mini_b if resaltado else fuente_mini).render(self.nombre, True, col)
-        nombre_img.set_alpha(round(255 * progreso) if entrada else 255)
+        nombre_img = _renderizar_texto(self.nombre, fuente_mini_b if resaltado else fuente_mini, tuple(col))
+        if entrada:
+            nombre_img = nombre_img.copy()
+            nombre_img.set_alpha(round(255 * progreso))
         pantalla.blit(nombre_img, nombre_img.get_rect(center=(cx, y - 26)))
         if resaltado:
             sube = int(math.sin(self.fase * 1.3) * 2)
@@ -2590,7 +2642,11 @@ def dibujar_region_mapa(camara, zoom, vista):
             tamano = (round(ancho_recorte * zoom), round(alto_recorte * zoom))
             capas_mapa_zoom[clave] = pygame.Surface(tamano, pygame.SRCALPHA)
         capa_zoom = capas_mapa_zoom[clave]
-    pygame.transform.smoothscale(capa_mapa.subsurface(recorte), capa_zoom.get_size(), capa_zoom)
+    clave_version = (_capa_mapa_version, recorte_x, recorte_y, ancho_recorte, alto_recorte, zoom)
+    id_capa_zoom = id(capa_zoom)
+    if _versiones_capa_zoom.get(id_capa_zoom) != clave_version:
+        pygame.transform.smoothscale(capa_mapa.subsurface(recorte), capa_zoom.get_size(), capa_zoom)
+        _versiones_capa_zoom[id_capa_zoom] = clave_version
     desplazamiento_x = round(camara[0] - recorte_x * zoom)
     desplazamiento_y = round(camara[1] - recorte_y * zoom)
     recorte_anterior = pantalla.get_clip()
@@ -2704,6 +2760,7 @@ def dibujar_formularios_multijugador():
 
 def dibujar_mapa_general(tiempo):
     """Muestra el plano completo de la nave y marca jugadores y salas objetivo."""
+    global _mapa_general_surface, _mapa_general_version, _mapa_general_size
     rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 205, 0)
     panel = pygame.Rect(42, 34, ANCHO - 84, ALTO - 68)
     rect_alpha(pantalla, (8, 18, 33), panel, 250, 18)
@@ -2719,8 +2776,14 @@ def dibujar_mapa_general(tiempo):
     mapa_rect = pygame.Rect(0, 0, ancho_mapa, alto_mapa)
     mapa_rect.center = mapa_caja.center
     pygame.draw.rect(pantalla, (4, 11, 22), mapa_rect.inflate(12, 12), border_radius=12)
-    mapa_completo = pygame.transform.smoothscale(capa_mapa, mapa_rect.size)
-    pantalla.blit(mapa_completo, mapa_rect)
+    if _mapa_general_surface is None or _mapa_general_size != mapa_rect.size:
+        _mapa_general_surface = pygame.Surface(mapa_rect.size, pygame.SRCALPHA).convert_alpha()
+        _mapa_general_size = mapa_rect.size
+        _mapa_general_version = -1
+    if _mapa_general_version != _capa_mapa_version:
+        pygame.transform.smoothscale(capa_mapa, mapa_rect.size, _mapa_general_surface)
+        _mapa_general_version = _capa_mapa_version
+    pantalla.blit(_mapa_general_surface, mapa_rect)
     pygame.draw.rect(pantalla, (61, 93, 122), mapa_rect, 1, border_radius=8)
 
     def posicion_mapa(x, y):
@@ -2758,7 +2821,7 @@ def dibujar_mapa_general(tiempo):
     for nombre, sala in salas.items():
         centro = posicion_mapa(*sala.center)
         etiqueta = abreviaturas[nombre]
-        imagen = fuente_mini.render(etiqueta, True, BLANCO if nombre == objetivo else SUAVE)
+        imagen = _renderizar_texto(etiqueta, fuente_mini, BLANCO if nombre == objetivo else SUAVE)
         caja_etiqueta = imagen.get_rect(center=centro)
         fondo_etiqueta = caja_etiqueta.inflate(6, 4)
         rect_alpha(pantalla, (5, 13, 25), fondo_etiqueta, 220, 3)
@@ -4140,17 +4203,28 @@ def crear_jugadores(total):
 # 3. INTERFAZ
 # =====================================================================
 
-def _texto_brillo(cadena, fnt, color, pos, halo=None, centro=False):
-    """Texto con resplandor suave."""
-    halo = halo or color
-    img = fnt.render(cadena, True, color)
-    r = img.get_rect(center=pos) if centro else img.get_rect(topleft=pos)
-    brillo = fnt.render(cadena, True, halo)
+@lru_cache(maxsize=64)
+def _superficie_texto_brillo(cadena, fnt, color, halo):
+    img = _renderizar_texto(cadena, fnt, color)
+    brillo = _renderizar_texto(cadena, fnt, halo).copy()
+    superficie = pygame.Surface((img.get_width() + 12, img.get_height() + 12), pygame.SRCALPHA)
+    superficie.fill((0, 0, 0, 0))
     for d, a in ((6, 18), (4, 32), (2, 60)):
         brillo.set_alpha(a)
         for dx, dy in ((-d, 0), (d, 0), (0, -d), (0, d), (-d, -d), (d, d), (-d, d), (d, -d)):
-            pantalla.blit(brillo, r.move(dx, dy))
-    pantalla.blit(img, r)
+            superficie.blit(brillo, (6 + dx, 6 + dy))
+    superficie.blit(img, (6, 6))
+    return superficie
+
+
+def _texto_brillo(cadena, fnt, color, pos, halo=None, centro=False):
+    """Texto con resplandor suave."""
+    color = tuple(color)
+    halo = tuple(halo or color)
+    img = _renderizar_texto(cadena, fnt, color)
+    r = img.get_rect(center=pos) if centro else img.get_rect(topleft=pos)
+    superficie = _superficie_texto_brillo(cadena, fnt, color, halo)
+    pantalla.blit(superficie, (r.x - 6, r.y - 6))
     return r
 
 
@@ -4161,11 +4235,16 @@ _vineta = None
 
 
 def _construir_fondo():
-    pequena = pygame.Surface((160, 90))
-    nebulosas = ((30, 25, 55, (70, 45, 140)), (125, 60, 60, (25, 90, 150)), (80, 85, 50, (120, 40, 90)))
-    for y in range(90):
-        base = mezclar((3, 7, 18), (11, 10, 32), y / 90)
-        for x in range(160):
+    pequena = pygame.Surface((320, 180))
+    nebulosas = (
+        (60, 50, 110, (70, 45, 140)),
+        (250, 120, 120, (25, 90, 150)),
+        (160, 170, 100, (120, 40, 90)),
+        (288, 70, 95, (50, 70, 145)),
+    )
+    for y in range(180):
+        base = mezclar((3, 7, 18), (11, 10, 32), y / 180)
+        for x in range(320):
             r, g, b = base
             for bx, by, br, col in nebulosas:
                 d = math.hypot(x - bx, (y - by) * 1.4) / br
@@ -4179,6 +4258,8 @@ def _construir_fondo():
 
     # Tierra, parcialmente fuera de pantalla.
     cx, cy, R = 1150, 800, 250
+    pygame.draw.ellipse(fondo, (25, 49, 83), (cx - 400, cy - 116, 800, 232), 1)
+    pygame.draw.ellipse(fondo, (35, 67, 108), (cx - 340, cy - 94, 680, 188), 1)
     halo = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
     for i in range(14):
         pygame.draw.circle(halo, (70, 140, 255, 9), (cx, cy), R + 4 + i * 3)
@@ -4192,6 +4273,7 @@ def _construir_fondo():
     for k in range(5):
         pygame.draw.arc(planeta, (190, 215, 245), (R // 2 + k * 18, R // 3 + k * 40, R, R // 2),
                         0.3, 2.2, 3)
+    pygame.draw.arc(planeta, (105, 179, 238, 150), (4, 4, R * 2 - 8, R * 2 - 8), 1.7, 4.7, 4)
     mascara = pygame.Surface((R * 2, R * 2), pygame.SRCALPHA)
     pygame.draw.circle(mascara, (255, 255, 255, 255), (R, R), R)
     planeta.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
@@ -4383,6 +4465,9 @@ def dibujar_menu(mouse, tiempo):
     panel_estado = pygame.Rect(780, 68, 428, 174)
     rect_alpha(pantalla, (8, 18, 35), panel_estado, 240, 16)
     pygame.draw.rect(pantalla, BORDE, panel_estado, 1, border_radius=16)
+    pygame.draw.line(pantalla, (71, 133, 177), (panel_estado.x + 18, panel_estado.y + 1),
+                     (panel_estado.right - 18, panel_estado.y + 1), 1)
+    pygame.draw.circle(pantalla, AZUL, (panel_estado.right - 18, panel_estado.y + 15), 2)
     texto("MEJORES RESULTADOS", fuente_mini_b, SUAVE, (804, 88), sombra=False)
     if puntuaciones:
         for i, registro in enumerate(puntuaciones[:MAX_PUNTUACIONES]):
@@ -4416,6 +4501,9 @@ def dibujar_menu(mouse, tiempo):
     panel_trip = pygame.Rect(640, 276, 568, 332)
     rect_alpha(pantalla, (8, 18, 35), panel_trip, 240, 16)
     pygame.draw.rect(pantalla, BORDE, panel_trip, 1, border_radius=16)
+    pygame.draw.line(pantalla, (151, 119, 70), (panel_trip.x + 18, panel_trip.y + 1),
+                     (panel_trip.right - 18, panel_trip.y + 1), 1)
+    pygame.draw.circle(pantalla, AMARILLO, (panel_trip.right - 18, panel_trip.y + 15), 2)
     texto("ESPECIALISTAS DE VUELO", fuente_mini_b, AMARILLO, (670, 298), sombra=False)
     texto("Cada rol aporta al rescate", fuente_mini, APAGADO, (670, 320), sombra=False)
     descripciones = [("Director", "ciencia, costo y coordinación"),
@@ -7102,12 +7190,13 @@ _cuadro_mapa = 0
 
 
 def actualizar_capa_mapa(tiempo):
-    global _cuadro_mapa
+    global _cuadro_mapa, _capa_mapa_version
     _cuadro_mapa += 1
     fps = clock.get_fps()
     if 0 < fps < 45 and _cuadro_mapa % 2:
         return
     _actualizar_capa_v1(tiempo)
+    _capa_mapa_version += 1
 
 
 # =====================================================================
