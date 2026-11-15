@@ -28,6 +28,8 @@ pygame.init()
 
 ANCHO = 1280
 ALTO = 720
+MUNDO_ANCHO = 2540
+MUNDO_ALTO = 1380
 
 pantalla_completa = True
 ventana = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
@@ -102,12 +104,16 @@ SUELO = (15, 29, 48)
 ROJO_CLARO = (255, 120, 120)
 PANEL_BG = (8, 17, 32)
 
-MAPA = pygame.Rect(16, 10, 1248, 700)
+MAPA = pygame.Rect(16, 10, MUNDO_ANCHO - 32, MUNDO_ALTO - 20)
 MAPA_VISTA = pygame.Rect(0, 0, ANCHO, ALTO)
 ZOOM_MAPA = 1.35
-capa_mapa = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
-capa_mapa_zoom = pygame.Surface((round(ANCHO * ZOOM_MAPA), round(ALTO * ZOOM_MAPA)), pygame.SRCALPHA)
+ANCHO_RECORTE = math.ceil(ANCHO / ZOOM_MAPA) + 2
+ALTO_RECORTE = math.ceil(ALTO / ZOOM_MAPA) + 2
+capa_mapa = pygame.Surface((MUNDO_ANCHO, MUNDO_ALTO), pygame.SRCALPHA)
+capa_mapa_zoom = pygame.Surface((round(ANCHO_RECORTE * ZOOM_MAPA),
+                                 round(ALTO_RECORTE * ZOOM_MAPA)), pygame.SRCALPHA)
 camara_mapa = [MAPA.left * ZOOM_MAPA, MAPA.top * ZOOM_MAPA]
+boton_cerrar_mapa = pygame.Rect(1070, 46, 156, 34)
 
 fuente = pygame.font.SysFont("arial", 19)
 fuente_q = pygame.font.SysFont("arial", 18)
@@ -208,18 +214,31 @@ def dibujar_particulas():
 # ====================
 
 salas = {
-    "ENERGIA": pygame.Rect(130, 174, 330, 174),
-    "OXIGENO": pygame.Rect(475, 174, 330, 174),
-    "NAVEGACION": pygame.Rect(820, 174, 330, 174),
-    "COMUNICACIONES": pygame.Rect(130, 430, 330, 210),
-    "SOPORTE VITAL": pygame.Rect(475, 430, 330, 210),
-    "TELEMETRIA": pygame.Rect(820, 430, 330, 210),
+    "ENERGIA": pygame.Rect(480, 350, 430, 250),
+    "OXIGENO": pygame.Rect(1120, 350, 430, 250),
+    "NAVEGACION": pygame.Rect(1760, 350, 430, 250),
+    "COMUNICACIONES": pygame.Rect(760, 760, 430, 250),
+    "SOPORTE VITAL": pygame.Rect(1400, 760, 430, 250),
+    "TELEMETRIA": pygame.Rect(1880, 760, 430, 250),
+    "OBSERVATORIO": pygame.Rect(560, 150, 270, 140),
+    "ESCLUSA AUXILIAR": pygame.Rect(1200, 150, 270, 140),
+    "ANTENAS": pygame.Rect(1840, 150, 270, 140),
+    "ENFERMERIA": pygame.Rect(920, 510, 170, 130),
+    "LABORATORIO": pygame.Rect(1560, 510, 170, 130),
+    "CONTROL TERMICO": pygame.Rect(2200, 510, 180, 130),
+    "COMEDOR": pygame.Rect(840, 1070, 270, 140),
+    "ALMACEN": pygame.Rect(1480, 1070, 270, 140),
+    "TALLER": pygame.Rect(1920, 1070, 270, 140),
 }
 
 NOMBRES_SALA = {
     "ENERGIA": "ENERGÍA", "OXIGENO": "OXÍGENO", "NAVEGACION": "NAVEGACIÓN",
     "COMUNICACIONES": "COMUNICACIONES", "SOPORTE VITAL": "SOPORTE VITAL",
     "TELEMETRIA": "TELEMETRÍA",
+    "OBSERVATORIO": "OBSERVATORIO", "ESCLUSA AUXILIAR": "ESCLUSA AUXILIAR",
+    "ANTENAS": "ANTENAS", "ENFERMERIA": "ENFERMERÍA", "LABORATORIO": "LABORATORIO",
+    "CONTROL TERMICO": "CONTROL TÉRMICO", "COMEDOR": "COMEDOR",
+    "ALMACEN": "ALMACÉN", "TALLER": "TALLER",
 }
 
 COLORES_SALA = {
@@ -229,18 +248,38 @@ COLORES_SALA = {
     "COMUNICACIONES": (190, 142, 255),
     "SOPORTE VITAL": (110, 220, 145),
     "TELEMETRIA": (255, 125, 145),
+    "OBSERVATORIO": (120, 181, 255),
+    "ESCLUSA AUXILIAR": (82, 214, 230),
+    "ANTENAS": (255, 153, 111),
+    "ENFERMERIA": (255, 132, 170),
+    "LABORATORIO": (142, 220, 128),
+    "CONTROL TERMICO": (255, 190, 91),
+    "COMEDOR": (255, 150, 103),
+    "ALMACEN": (179, 157, 125),
+    "TALLER": (134, 174, 196),
 }
 
-PASILLO = pygame.Rect(112, 355, 1056, 70)
-PUERTAS = [
-    pygame.Rect(295 - 44, 340, 88, 36),
-    pygame.Rect(640 - 44, 340, 88, 36),
-    pygame.Rect(985 - 44, 340, 88, 36),
-    pygame.Rect(295 - 44, 405, 88, 36),
-    pygame.Rect(640 - 44, 405, 88, 36),
-    pygame.Rect(985 - 44, 405, 88, 36),
+PASILLO = pygame.Rect(120, 655, 2300, 70)
+PASILLOS_EXTRA = [
+    pygame.Rect(390, 300, 1800, 50),
+    pygame.Rect(650, 1020, 1700, 50),
 ]
-ZONAS = list(salas.values()) + [PASILLO] + PUERTAS
+PUERTAS = []
+CENTROS_MISION_SUPERIORES = tuple(salas[n].centerx for n in ("ENERGIA", "OXIGENO", "NAVEGACION"))
+CENTROS_MISION_INFERIORES = tuple(
+    salas[n].centerx for n in ("COMUNICACIONES", "SOPORTE VITAL", "TELEMETRIA")
+)
+CENTROS_SERVICIO = tuple(salas[n].centerx for n in ("ENFERMERIA", "LABORATORIO", "CONTROL TERMICO"))
+PUERTAS_EXTRA = (
+    [pygame.Rect(x - 34, 280, 68, 40) for x in (695, 1335, 1975)]
+    + [pygame.Rect(x - 34, 330, 68, 35) for x in CENTROS_MISION_SUPERIORES]
+    + [pygame.Rect(x - 34, 570, 68, 95) for x in CENTROS_MISION_SUPERIORES]
+    + [pygame.Rect(x - 34, 710, 68, 60) for x in CENTROS_MISION_INFERIORES]
+    + [pygame.Rect(x - 34, 995, 68, 35) for x in CENTROS_MISION_INFERIORES]
+    + [pygame.Rect(x - 34, 1050, 68, 40) for x in CENTROS_MISION_INFERIORES]
+    + [pygame.Rect(x - 34, 630, 68, 40) for x in CENTROS_SERVICIO]
+)
+ZONAS = list(salas.values()) + [PASILLO] + PASILLOS_EXTRA + PUERTAS + list(PUERTAS_EXTRA)
 GROSOR_PARED = 6
 
 
@@ -855,7 +894,7 @@ def crear_jugadores(total):
     met_vis = misiones[0]["met"]
     proximo_evento = random.uniform(EVENTO_MIN, EVENTO_MAX)
     asignacion = asignar_misiones(total)
-    posiciones = [(160, 496), (300, 496), (160, 568), (300, 568)]
+    posiciones = [(185, 660), (305, 660), (185, 680), (305, 680)]
     for i in range(total):
         x, y = posiciones[i]
         jugadores.append(Jugador(x, y, colores[i], roles[i]))
@@ -1136,6 +1175,51 @@ def dibujar_icono_sala(nombre, centro, color):
         pts = [(-18, 0), (-8, 0), (-3, -13), (4, 13), (9, 0), (18, 0)]
         for a, b in zip(pts, pts[1:]):
             pygame.draw.line(pantalla, color, (cx + a[0], cy + a[1]), (cx + b[0], cy + b[1]), 2)
+    elif nombre == "OBSERVATORIO":
+        pygame.draw.circle(pantalla, color, (cx, cy), 19, 2)
+        pygame.draw.circle(pantalla, color, (cx, cy), 9, 1)
+        pygame.draw.line(pantalla, color, (cx - 22, cy), (cx + 22, cy), 1)
+        pygame.draw.line(pantalla, color, (cx, cy - 22), (cx, cy + 22), 1)
+        pygame.draw.circle(pantalla, BLANCO, (cx + 7, cy - 5), 2)
+    elif nombre == "ESCLUSA AUXILIAR":
+        pygame.draw.rect(pantalla, color, (cx - 14, cy - 19, 28, 38), 2, border_radius=8)
+        pygame.draw.line(pantalla, color, (cx - 8, cy), (cx + 8, cy), 2)
+        pygame.draw.circle(pantalla, color, (cx, cy), 4, 1)
+    elif nombre == "ANTENAS":
+        pygame.draw.line(pantalla, color, (cx, cy + 17), (cx, cy - 7), 2)
+        pygame.draw.circle(pantalla, color, (cx, cy - 9), 3)
+        for radio in (10, 17, 24):
+            pygame.draw.arc(pantalla, color, (cx - radio, cy - 9 - radio,
+                                               radio * 2, radio * 2),
+                            math.radians(220), math.radians(320), 2)
+    elif nombre == "ENFERMERIA":
+        pygame.draw.rect(pantalla, color, (cx - 7, cy - 20, 14, 40), border_radius=3)
+        pygame.draw.rect(pantalla, color, (cx - 20, cy - 7, 40, 14), border_radius=3)
+    elif nombre == "LABORATORIO":
+        pygame.draw.lines(pantalla, color, False, [
+            (cx - 7, cy - 19), (cx - 5, cy - 7), (cx - 15, cy + 14),
+            (cx - 12, cy + 19), (cx + 12, cy + 19), (cx + 15, cy + 14),
+            (cx + 5, cy - 7), (cx + 7, cy - 19),
+        ], 2)
+        pygame.draw.line(pantalla, color, (cx - 11, cy + 7), (cx + 11, cy + 7), 2)
+    elif nombre == "CONTROL TERMICO":
+        pygame.draw.circle(pantalla, color, (cx, cy - 10), 8, 2)
+        pygame.draw.line(pantalla, color, (cx, cy - 2), (cx, cy + 16), 4)
+        pygame.draw.circle(pantalla, color, (cx, cy + 16), 7)
+    elif nombre == "COMEDOR":
+        pygame.draw.arc(pantalla, color, (cx - 18, cy - 7, 36, 27), math.pi, math.tau, 3)
+        pygame.draw.line(pantalla, color, (cx - 18, cy + 6), (cx + 18, cy + 6), 2)
+        pygame.draw.line(pantalla, color, (cx + 17, cy - 13), (cx + 17, cy + 4), 2)
+    elif nombre == "ALMACEN":
+        for dx, dy in ((-10, -8), (9, -8), (-10, 10), (9, 10)):
+            pygame.draw.rect(pantalla, color, (cx + dx - 7, cy + dy - 7, 14, 14), 2)
+    elif nombre == "TALLER":
+        pygame.draw.circle(pantalla, color, (cx, cy), 16, 3)
+        pygame.draw.circle(pantalla, color, (cx, cy), 6, 2)
+        for angulo in range(0, 360, 60):
+            a = math.radians(angulo)
+            pygame.draw.line(pantalla, color, (cx + int(math.cos(a) * 17), cy + int(math.sin(a) * 17)),
+                             (cx + int(math.cos(a) * 23), cy + int(math.sin(a) * 23)), 3)
     else:
         pygame.draw.circle(pantalla, color, (cx, cy), 5, 2)
         for radio in (12, 19):
@@ -1186,6 +1270,57 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
             pygame.draw.arc(pantalla, color, (cx - radio, cy - radio, radio * 2, radio * 2),
                             math.radians(220), math.radians(320), 1)
         pygame.draw.circle(pantalla, color, (cx, cy + 2), 2)
+    elif nombre == "OBSERVATORIO":
+        pygame.draw.circle(pantalla, color, (cx, cy), 7, 1)
+        pygame.draw.line(pantalla, color, (cx - 16, cy), (cx + 16, cy), 1)
+        pygame.draw.line(pantalla, color, (cx, cy - 7), (cx, cy + 7), 1)
+        pygame.draw.circle(pantalla, BLANCO, (cx + int(math.sin(tiempo) * 10), cy - 4), 2)
+    elif nombre == "ESCLUSA AUXILIAR":
+        pygame.draw.circle(pantalla, color, (cx, cy), 7, 1)
+        pygame.draw.circle(pantalla, color, (cx, cy), 3)
+        pygame.draw.arc(pantalla, color, (cx - 17, cy - 14, 34, 28),
+                        math.radians(190), math.radians(350), 1)
+    elif nombre == "ANTENAS":
+        pygame.draw.circle(pantalla, color, (cx, cy + 5), 2)
+        for radio in (7, 13, 19):
+            pygame.draw.arc(pantalla, color, (cx - radio, cy - radio, radio * 2, radio * 2),
+                            math.radians(220), math.radians(320), 1)
+    elif nombre == "ENFERMERIA":
+        puntos = [(visor.x + 4, cy), (visor.x + 13, cy), (visor.x + 18, cy - 6),
+                  (visor.x + 24, cy + 6), (visor.x + 29, cy), (visor.right - 4, cy)]
+        pygame.draw.lines(pantalla, color, False, puntos, 2)
+    elif nombre == "LABORATORIO":
+        for i in range(3):
+            x = visor.x + 12 + i * 14
+            pygame.draw.line(pantalla, color, (x - 3, visor.y + 4), (x + 3, visor.y + 4), 1)
+            pygame.draw.lines(pantalla, color, False, [
+                (x - 2, visor.y + 5), (x - 2, visor.bottom - 3),
+                (x + 2, visor.bottom - 3), (x + 2, visor.y + 5),
+            ], 1)
+    elif nombre == "CONTROL TERMICO":
+        for i in range(5):
+            alto = 4 + int((0.5 + 0.5 * math.sin(tiempo * 2 + i)) * 8)
+            x = visor.x + 8 + i * 9
+            pygame.draw.line(pantalla, mezclar(pantalla_color, color, 0.4 + i * 0.1),
+                             (x, visor.bottom - 3), (x, visor.bottom - 3 - alto), 2)
+    elif nombre == "COMEDOR":
+        for i in range(3):
+            x = visor.x + 12 + i * 14
+            pygame.draw.circle(pantalla, color, (x, cy), 4, 1)
+            pygame.draw.line(pantalla, color, (x, cy + 4), (x, cy + 7), 1)
+    elif nombre == "ALMACEN":
+        for i in range(3):
+            caja = pygame.Rect(visor.x + 5 + i * 15, visor.y + 5, 12, 9)
+            pygame.draw.rect(pantalla, color, caja, 1, border_radius=1)
+            pygame.draw.line(pantalla, color, (caja.centerx, caja.y), (caja.centerx, caja.bottom), 1)
+    elif nombre == "TALLER":
+        pygame.draw.circle(pantalla, color, (cx, cy), 7, 1)
+        pygame.draw.circle(pantalla, color, (cx, cy), 3, 1)
+        pygame.draw.line(pantalla, color, (cx + 6, cy + 5), (cx + 17, cy + 9), 2)
+    elif nombre == "TELEMETRIA":
+        puntos = [(visor.x + 5, cy + 2), (visor.x + 14, cy + 2), (visor.x + 19, cy - 5),
+                  (visor.x + 25, cy + 5), (visor.x + 33, cy - 3), (visor.right - 5, cy - 3)]
+        pygame.draw.lines(pantalla, color, False, puntos, 1)
     else:
         puntos = [(visor.x + 5, cy + 2), (visor.x + 14, cy + 2), (visor.x + 19, cy - 5),
                   (visor.x + 25, cy + 5), (visor.x + 33, cy - 3), (visor.right - 5, cy - 3)]
@@ -1240,37 +1375,39 @@ def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
                              (rect.centerx, y + 12), 2)
 
 
-def dibujar_nave(tiempo):
-    fuselaje = [
-        (ANCHO // 2, MAPA.y), (1050, 65), (1235, 130), (MAPA.right, 190),
-        (MAPA.right, 610), (1200, 655), (1140, MAPA.bottom), (1030, MAPA.bottom - 40),
-        (250, MAPA.bottom - 40), (140, MAPA.bottom), (80, 655), (MAPA.x, 610),
-        (MAPA.x, 190), (45, 130), (230, 65),
+def dibujar_casco_anexo():
+    ala_superior = [(2030, 190), (2310, 55), (2260, 325), (2160, 410)]
+    ala_inferior = [(2030, 1190), (2310, 1325), (2260, 1055), (2160, 970)]
+    for ala in (ala_superior, ala_inferior):
+        pygame.draw.polygon(pantalla, (11, 23, 38), ala)
+        pygame.draw.polygon(pantalla, (54, 82, 108), ala, 3)
+        pygame.draw.aalines(pantalla, (69, 98, 123), True, ala)
+
+    casco = [
+        (38, 690), (330, 300), (465, 165), (590, 95), (2080, 95),
+        (2220, 155), (2310, 320), (2390, 410), (2480, 480), (2515, 690),
+        (2480, 900), (2390, 970), (2310, 1060), (2220, 1225),
+        (2080, 1285), (590, 1285), (465, 1215), (330, 1080),
     ]
-    pygame.draw.polygon(pantalla, (10, 20, 34), fuselaje)
-    pygame.draw.polygon(pantalla, (54, 82, 108), fuselaje, 3)
-    pygame.draw.aalines(pantalla, (69, 98, 123), True, fuselaje)
-    pygame.draw.lines(pantalla, (31, 51, 72), True, [
-        (ANCHO // 2, MAPA.y + 18), (1038, 78), (1222, 198), (1222, 602),
-        (1127, 642), (153, 642), (58, 602), (58, 198), (242, 78),
+    pygame.draw.polygon(pantalla, (9, 18, 31), casco)
+    pygame.draw.polygon(pantalla, (54, 82, 108), casco, 4)
+    pygame.draw.aalines(pantalla, (72, 101, 128), True, casco)
+    pygame.draw.lines(pantalla, (29, 48, 69), True, [
+        (362, 313), (482, 184), (605, 113), (2068, 113), (2205, 174),
+        (2290, 335), (2372, 425), (2460, 493), (2493, 690),
+        (2460, 887), (2372, 955), (2290, 1045), (2205, 1206),
+        (2068, 1267), (605, 1267), (482, 1196), (362, 1067),
     ], 1)
-    pygame.draw.line(pantalla, (41, 65, 87), (ANCHO // 2, 18), (ANCHO // 2, 132), 2)
-    pygame.draw.line(pantalla, (41, 65, 87), (300, 112), (980, 112), 2)
-    for x in (118, 1162):
-        pygame.draw.line(pantalla, (37, 59, 80), (x, 180), (x, 625), 2)
-        for y in (215, 320, 455, 560):
-            pygame.draw.circle(pantalla, (78, 103, 126), (x, y), 3)
+    for x in range(620, 2070, 92):
+        pygame.draw.circle(pantalla, (76, 100, 124), (x, 112), 2)
+        pygame.draw.circle(pantalla, (76, 100, 124), (x, 1268), 2)
+    for x in (480, 560, 2160, 2240):
+        for y in (210, 126, 1170):
+            pygame.draw.circle(pantalla, (71, 96, 119), (x, y), 2)
 
-    # Costillas del casco y remaches alrededor de los compartimentos.
-    for x in range(220, MAPA.right - 20, 90):
-        pygame.draw.line(pantalla, (35, 54, 76), (x, MAPA.y + 28), (x, MAPA.y + 34), 2)
-        pygame.draw.line(pantalla, (35, 54, 76), (x, MAPA.bottom - 34), (x, MAPA.bottom - 28), 2)
-        pygame.draw.circle(pantalla, (72, 96, 120), (x, MAPA.y + 20), 2)
-        pygame.draw.circle(pantalla, (72, 96, 120), (x, MAPA.bottom - 20), 2)
-    for y in (250, 320, 455, 525, 605):
-        pygame.draw.line(pantalla, (32, 50, 70), (MAPA.x + 8, y), (MAPA.x + 17, y), 2)
-        pygame.draw.line(pantalla, (32, 50, 70), (MAPA.right - 17, y), (MAPA.right - 8, y), 2)
 
+def dibujar_nave(tiempo):
+    dibujar_casco_anexo()
     dibujar_paredes()
     for x, semilla, velocidad, fase in MOTAS_CORREDOR:
         y = PASILLO.y + 10 + ((semilla * (PASILLO.height - 20) + tiempo * velocidad)
@@ -1281,31 +1418,25 @@ def dibujar_nave(tiempo):
         pygame.draw.circle(pantalla, tono, (round(px), round(y)), 1)
         if brillo > 0.78:
             pygame.draw.circle(pantalla, tono, (round(px) + 1, round(y) - 1), 1)
-    puente = [(640, 130), (750, 169), (530, 169)]
-    pygame.draw.polygon(pantalla, (11, 25, 41), puente)
-    pygame.draw.polygon(pantalla, (77, 111, 139), puente, 2)
-    texto("PUENTE DE MANDO", fuente_mini_b, SUAVE, (640, 137), centro=True, sombra=False)
-    for x in (600, 640, 680):
-        pygame.draw.circle(pantalla, (20, 66, 91), (x, 158), 5)
-        pygame.draw.circle(pantalla, AZUL, (x, 158), 5, 1)
-    dibujar_modulo_auxiliar(pygame.Rect(26, 220, 88, 128), "TANQUES O2", "tanques", AZUL)
-    dibujar_modulo_auxiliar(pygame.Rect(1166, 220, 88, 128), "CELDAS FC", "celdas", AMARILLO)
-    dibujar_modulo_auxiliar(pygame.Rect(26, 456, 88, 170), "ESCLUSA EVA", "esclusa", AZUL)
-    dibujar_modulo_auxiliar(pygame.Rect(1166, 456, 88, 170), "RCS", "propulsores", ROJO_CLARO)
-    for i, x in enumerate((470, 640, 810)):
-        fase_motor = tiempo * 12 + i * 2.1
-        impulso = 0.5 + 0.5 * math.sin(fase_motor)
-        pygame.draw.ellipse(pantalla, (13, 26, 41), (x - 28, 652, 56, 34))
-        pygame.draw.ellipse(pantalla, (84, 111, 134), (x - 21, 657, 42, 24), 2)
-        pygame.draw.ellipse(pantalla, (28, 59, 80), (x - 10, 663, 20, 12))
-        largo_pluma = 10 + int(8 * impulso)
+    parabrisas = pygame.Rect(128, 626, 154, 24)
+    pygame.draw.ellipse(pantalla, (12, 34, 55), parabrisas)
+    pygame.draw.ellipse(pantalla, (77, 121, 154), parabrisas, 2)
+    pygame.draw.line(pantalla, AZUL, (parabrisas.x + 28, parabrisas.centery),
+                     (parabrisas.right - 28, parabrisas.centery), 1)
+    texto("PUENTE", fuente_mini_b, SUAVE, (205, 610), centro=True, sombra=False)
+
+    for i, y in enumerate((560, 690, 820)):
+        impulso = 0.5 + 0.5 * math.sin(tiempo * 12 + i * 2.1)
+        boquilla = pygame.Rect(2420, y - 22, 76, 44)
+        pygame.draw.ellipse(pantalla, (13, 26, 41), boquilla)
+        pygame.draw.ellipse(pantalla, (84, 111, 134), boquilla.inflate(-12, -8), 2)
+        pygame.draw.ellipse(pantalla, (28, 59, 80), (2468, y - 10, 23, 20))
+        largo_pluma = 20 + int(18 * impulso)
         pygame.draw.polygon(pantalla, (30, 78, 112), [
-            (x - 8, 680), (x + 8, 680), (x + 4, 680 + largo_pluma),
-            (x, 686 + largo_pluma), (x - 4, 680 + largo_pluma),
+            (2488, y - 12), (2488, y + 12), (2510 + largo_pluma, y),
         ])
         pygame.draw.polygon(pantalla, mezclar((48, 113, 151), (154, 222, 241), impulso), [
-            (x - 3, 680), (x + 3, 680), (x + 1, 680 + int(largo_pluma * 0.62)),
-            (x, 683 + int(largo_pluma * 0.62)), (x - 1, 680 + int(largo_pluma * 0.62)),
+            (2488, y - 5), (2488, y + 5), (2500 + int(largo_pluma * 0.65), y),
         ])
 
     # Paneles de presión y cableado en el corredor central.
@@ -1315,6 +1446,28 @@ def dibujar_nave(tiempo):
                      (PASILLO.right - 12, PASILLO.bottom - 8), 1)
     for x in range(PASILLO.x + 24, PASILLO.right - 16, 54):
         pygame.draw.line(pantalla, (27, 44, 64), (x, PASILLO.y + 17), (x, PASILLO.bottom - 17), 1)
+    for i, pasillo in enumerate(PASILLOS_EXTRA):
+        color_guia = (31, 66, 91) if i % 2 == 0 else (36, 61, 82)
+        if pasillo.width > pasillo.height:
+            pygame.draw.line(pantalla, color_guia, (pasillo.x + 14, pasillo.centery),
+                             (pasillo.right - 14, pasillo.centery), 1)
+            for x in range(pasillo.x + 28, pasillo.right - 18, 48):
+                brillo = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tiempo * 2.4 + x * 0.03))
+                color_luz = mezclar((21, 39, 57), AZUL, brillo)
+                pygame.draw.line(pantalla, color_luz, (x, pasillo.y + 12),
+                                 (x, pasillo.y + 19), 2)
+                pygame.draw.line(pantalla, color_luz, (x, pasillo.bottom - 19),
+                                 (x, pasillo.bottom - 12), 2)
+        else:
+            pygame.draw.line(pantalla, color_guia, (pasillo.centerx, pasillo.y + 12),
+                             (pasillo.centerx, pasillo.bottom - 12), 1)
+            for y in range(pasillo.y + 28, pasillo.bottom - 18, 44):
+                brillo = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tiempo * 2.2 + y * 0.04))
+                color_luz = mezclar((21, 39, 57), AZUL, brillo)
+                pygame.draw.line(pantalla, color_luz, (pasillo.x + 11, y),
+                                 (pasillo.x + 18, y), 2)
+                pygame.draw.line(pantalla, color_luz, (pasillo.right - 18, y),
+                                 (pasillo.right - 11, y), 2)
 
     objetivo = misiones[mision_actual] if mision_actual < len(misiones) else None
     pulso = 0.5 + 0.5 * math.sin(tiempo * 3.2)
@@ -1324,6 +1477,29 @@ def dibujar_nave(tiempo):
         activa = objetivo is not None and objetivo["sala"] == nombre
         pygame.draw.rect(pantalla, (17, 32, 52), sala, border_radius=12)
         dibujar_equipo_sala(nombre, sala, color, tiempo)
+        if sala.width >= 400:
+            texto("CONSOLA AUXILIAR", fuente_mini, APAGADO,
+                  (sala.x + 76, sala.y + 55), sombra=False)
+            for modulo in range(4):
+                x = sala.x + 76 + modulo * 72
+                consola_aux = pygame.Rect(x, sala.y + 75, 56, 42)
+                pantalla_aux = pygame.Rect(x + 5, sala.y + 5 + 75, 46, 22)
+                pygame.draw.rect(pantalla, (10, 22, 38), consola_aux, border_radius=4)
+                pygame.draw.rect(pantalla, (39, 61, 83), consola_aux, 1, border_radius=4)
+                pygame.draw.rect(pantalla, mezclar((12, 27, 44), color, 0.22),
+                                 pantalla_aux, border_radius=2)
+                fase_grafica = tiempo * 2.8 + modulo * 1.7 + sala.x * 0.01
+                puntos_grafica = [
+                    (pantalla_aux.x + 4, pantalla_aux.centery),
+                    (pantalla_aux.x + 13, pantalla_aux.centery - int(4 * math.sin(fase_grafica))),
+                    (pantalla_aux.x + 22, pantalla_aux.centery + int(5 * math.sin(fase_grafica + 1))),
+                    (pantalla_aux.x + 31, pantalla_aux.centery - int(3 * math.sin(fase_grafica + 2))),
+                    (pantalla_aux.right - 4, pantalla_aux.centery),
+                ]
+                pygame.draw.lines(pantalla, color, False, puntos_grafica, 1)
+                for luz in range(3):
+                    tono = color if (tiempo * 2 + modulo + luz) % 3 < 1 else (59, 78, 96)
+                    pygame.draw.circle(pantalla, tono, (x + 14 + luz * 14, consola_aux.bottom - 5), 2)
         # Consola mural compacta, como el instrumental de cada estación.
         consola = pygame.Rect(sala.x + 14, sala.y + 54, 38, 31)
         pygame.draw.rect(pantalla, (11, 23, 39), consola, border_radius=4)
@@ -1366,15 +1542,23 @@ def dibujar_nave(tiempo):
                 texto(asignacion[mision_actual].upper(), fuente_mini, mezclar(APAGADO, BLANCO, 0.5),
                       (sala.centerx, sala.centery + 6), centro=True)
 
-    for puerta in PUERTAS:
+    for puerta in PUERTAS + list(PUERTAS_EXTRA):
         hueco = puerta.inflate(-6, 0)
         pygame.draw.rect(pantalla, SUELO, hueco)
-        pygame.draw.line(pantalla, (120, 99, 58), (hueco.left + 5, hueco.top + 3),
-                         (hueco.left + 5, hueco.bottom - 3), 2)
-        pygame.draw.line(pantalla, (120, 99, 58), (hueco.right - 5, hueco.top + 3),
-                         (hueco.right - 5, hueco.bottom - 3), 2)
-        pygame.draw.line(pantalla, (58, 76, 93), (hueco.left + 10, hueco.centery),
-                         (hueco.right - 10, hueco.centery), 1)
+        if puerta.width >= puerta.height:
+            pygame.draw.line(pantalla, (120, 99, 58), (hueco.left + 5, hueco.top + 3),
+                             (hueco.left + 5, hueco.bottom - 3), 2)
+            pygame.draw.line(pantalla, (120, 99, 58), (hueco.right - 5, hueco.top + 3),
+                             (hueco.right - 5, hueco.bottom - 3), 2)
+            pygame.draw.line(pantalla, (58, 76, 93), (hueco.left + 10, hueco.centery),
+                             (hueco.right - 10, hueco.centery), 1)
+        else:
+            pygame.draw.line(pantalla, (120, 99, 58), (hueco.left + 3, hueco.top + 5),
+                             (hueco.right - 3, hueco.top + 5), 2)
+            pygame.draw.line(pantalla, (120, 99, 58), (hueco.left + 3, hueco.bottom - 5),
+                             (hueco.right - 3, hueco.bottom - 5), 2)
+            pygame.draw.line(pantalla, (58, 76, 93), (hueco.centerx, hueco.top + 10),
+                             (hueco.centerx, hueco.bottom - 10), 1)
 
 
 def dibujar_mapa_vista(tiempo):
@@ -1391,14 +1575,83 @@ def dibujar_mapa_vista(tiempo):
     finally:
         pantalla = pantalla_anterior
 
-    pygame.transform.smoothscale(capa_mapa, capa_mapa_zoom.get_size(), capa_mapa_zoom)
+    recorte_x = max(0, min(MUNDO_ANCHO - ANCHO_RECORTE,
+                           int(camara_mapa[0] / ZOOM_MAPA)))
+    recorte_y = max(0, min(MUNDO_ALTO - ALTO_RECORTE,
+                           int(camara_mapa[1] / ZOOM_MAPA)))
+    recorte = pygame.Rect(recorte_x, recorte_y, ANCHO_RECORTE, ALTO_RECORTE)
+    pygame.transform.smoothscale(capa_mapa.subsurface(recorte), capa_mapa_zoom.get_size(), capa_mapa_zoom)
+    desplazamiento_x = round(camara_mapa[0] - recorte_x * ZOOM_MAPA)
+    desplazamiento_y = round(camara_mapa[1] - recorte_y * ZOOM_MAPA)
     recorte_anterior = pantalla.get_clip()
     pantalla.set_clip(MAPA_VISTA)
     try:
-        pantalla.blit(capa_mapa_zoom, (MAPA_VISTA.x - round(camara_mapa[0]),
-                                      MAPA_VISTA.y - round(camara_mapa[1])))
+        pantalla.blit(capa_mapa_zoom, (MAPA_VISTA.x - desplazamiento_x,
+                                      MAPA_VISTA.y - desplazamiento_y))
     finally:
         pantalla.set_clip(recorte_anterior)
+
+
+def dibujar_mapa_general(tiempo):
+    rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 205, 0)
+    panel = pygame.Rect(42, 34, ANCHO - 84, ALTO - 68)
+    rect_alpha(pantalla, (8, 18, 33), panel, 250, 18)
+    pygame.draw.rect(pantalla, (57, 91, 126), panel, 1, border_radius=18)
+    pygame.draw.line(pantalla, AZUL, (panel.x + 30, panel.y + 2),
+                     (panel.right - 30, panel.y + 2), 2)
+    texto("MAPA DE NAVEGACIÓN", fuente_mediana, BLANCO, (panel.x + 28, panel.y + 17))
+
+    mapa_caja = pygame.Rect(panel.x + 30, panel.y + 62, panel.width - 60, 474)
+    escala = min(mapa_caja.width / MUNDO_ANCHO, mapa_caja.height / MUNDO_ALTO)
+    ancho_mapa = round(MUNDO_ANCHO * escala)
+    alto_mapa = round(MUNDO_ALTO * escala)
+    mapa_rect = pygame.Rect(0, 0, ancho_mapa, alto_mapa)
+    mapa_rect.center = mapa_caja.center
+    pygame.draw.rect(pantalla, (4, 11, 22), mapa_rect.inflate(12, 12), border_radius=12)
+    mapa_completo = pygame.transform.smoothscale(capa_mapa, mapa_rect.size)
+    pantalla.blit(mapa_completo, mapa_rect)
+    pygame.draw.rect(pantalla, (61, 93, 122), mapa_rect, 1, border_radius=8)
+
+    def posicion_mapa(x, y):
+        return (mapa_rect.x + round(x * escala), mapa_rect.y + round(y * escala))
+
+    objetivo = misiones[mision_actual]["sala"] if mision_actual < len(misiones) else None
+    if objetivo in salas:
+        sala_objetivo = salas[objetivo]
+        destino = pygame.Rect(round(sala_objetivo.x * escala), round(sala_objetivo.y * escala),
+                              round(sala_objetivo.width * escala), round(sala_objetivo.height * escala))
+        destino.move_ip(mapa_rect.topleft)
+        pygame.draw.rect(pantalla, AMARILLO, destino, 3, border_radius=5)
+
+    abreviaturas = {
+        "ENERGIA": "ENERGÍA", "OXIGENO": "OXÍGENO", "NAVEGACION": "NAVEG.",
+        "COMUNICACIONES": "COMUNIC.", "SOPORTE VITAL": "SOPORTE", "TELEMETRIA": "TELEMET.",
+        "OBSERVATORIO": "OBSERVAT.", "ESCLUSA AUXILIAR": "ESCLUSA", "ANTENAS": "ANTENAS",
+        "ENFERMERIA": "ENFERM.", "LABORATORIO": "LAB.", "CONTROL TERMICO": "TÉRMICO",
+        "COMEDOR": "COMEDOR", "ALMACEN": "ALMACÉN", "TALLER": "TALLER",
+    }
+    for nombre, sala in salas.items():
+        centro = posicion_mapa(*sala.center)
+        etiqueta = abreviaturas[nombre]
+        imagen = fuente_mini.render(etiqueta, True, BLANCO if nombre == objetivo else SUAVE)
+        caja_etiqueta = imagen.get_rect(center=centro)
+        fondo_etiqueta = caja_etiqueta.inflate(6, 4)
+        rect_alpha(pantalla, (5, 13, 25), fondo_etiqueta, 220, 3)
+        pantalla.blit(imagen, caja_etiqueta)
+
+    for indice, jugador in enumerate(jugadores):
+        centro = posicion_mapa(jugador.rect.centerx, jugador.rect.centery)
+        pulso = 8 + int(2 * (0.5 + 0.5 * math.sin(tiempo * 4 + indice)))
+        pygame.draw.circle(pantalla, jugador.color, centro, pulso, 2)
+        pygame.draw.circle(pantalla, BLANCO, centro, 3)
+        texto(str(indice + 1), fuente_mini_b, BLANCO, (centro[0], centro[1] - 18),
+              centro=True, sombra=False)
+
+    destino_nombre = NOMBRES_SALA.get(objetivo, "MISIONES COMPLETADAS")
+    texto(f"DESTINO ACTUAL: {destino_nombre}", fuente_mini_b, AMARILLO,
+          (panel.x + 30, panel.bottom - 34), sombra=False)
+    texto("M  /  ESC  CERRAR MAPA", fuente_mini, APAGADO,
+          (panel.right - 30, panel.bottom - 32), derecha=True, sombra=False)
 
 
 def dibujar_recursos():
@@ -1501,7 +1754,7 @@ def dibujar_tripulacion():
         pygame.draw.circle(pantalla, j.color, (x + 5, 701), 4)
         texto(f"{j.nombre.upper()}  {TECLAS_TEXTO[i]}  {hechas}/{total}",
               fuente_mini, BLANCO if j.nombre == resp else SUAVE, (x + 16, 694), sombra=False)
-    texto("E  INTERACTUAR   ·   ESC  PAUSA   ·   F11  PANTALLA",
+    texto("E  INTERACTUAR   ·   M  MAPA   ·   ESC  PAUSA   ·   F11  PANTALLA",
           fuente_mini, APAGADO, (ANCHO - 24, 694),
           derecha=True, sombra=False)
 
@@ -1989,8 +2242,19 @@ def main():
                     if evento.key == pygame.K_ESCAPE:
                         tiempo_pausa = tiempo
                         estado = "pausa"
+                    elif evento.key == pygame.K_m:
+                        tiempo_pausa = tiempo
+                        estado = "mapa"
                     elif evento.key == pygame.K_e and en_sector():
                         abrir_formulario()
+
+            elif estado == "mapa":
+                if evento.type == pygame.KEYDOWN and evento.key in (pygame.K_ESCAPE, pygame.K_m):
+                    estado = "juego"
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    if boton_cerrar_mapa.collidepoint(pos):
+                        estado = "juego"
 
             elif estado == "pausa":
                 if evento.type == pygame.KEYDOWN:
@@ -2036,7 +2300,7 @@ def main():
                     jugadores.clear()
                     particulas.clear()
 
-        if estado != "pausa":
+        if estado not in ("pausa", "mapa"):
             actualizar_efectos(dt)
 
         if estado in ("juego", "formulario"):
@@ -2049,10 +2313,10 @@ def main():
 
         if estado == "menu":
             dibujar_menu(mouse, tiempo)
-        elif estado in ("juego", "formulario", "pausa"):
-            tiempo_escena = tiempo_pausa if estado == "pausa" else tiempo
+        elif estado in ("juego", "formulario", "pausa", "mapa"):
+            tiempo_escena = tiempo_pausa if estado in ("pausa", "mapa") else tiempo
             dibujar_fondo(tiempo_escena)
-            if estado != "pausa":
+            if estado not in ("pausa", "mapa"):
                 actualizar_camara_mapa(dt)
             dibujar_mapa_vista(tiempo_escena)
             dibujar_cabecera()
@@ -2064,6 +2328,12 @@ def main():
                 dibujar_formulario(mouse, dt)
             elif estado == "pausa":
                 dibujar_pausa(mouse, tiempo)
+            elif estado == "mapa":
+                dibujar_mapa_general(tiempo_escena)
+                rect_alpha(pantalla, (17, 45, 70), boton_cerrar_mapa, 240, 10)
+                pygame.draw.rect(pantalla, (85, 134, 174), boton_cerrar_mapa, 1, border_radius=10)
+                texto("CERRAR  X", fuente_mini_b, BLANCO, boton_cerrar_mapa.center,
+                      centro=True, sombra=False)
         elif estado == "final":
             dibujar_resultado(tiempo, True)
         elif estado == "fallo":
