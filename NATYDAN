@@ -4859,13 +4859,8 @@ def dibujar_ficha(mouse, tiempo):
     texto(FICHA_FUENTE, fuente_micro, APAGADO, (panel.centerx + 20, panel.bottom - 40), centro=True, sombra=False)
     texto("← →  cambiar página   ·   ESC  cerrar", fuente_micro, APAGADO,
           (panel.centerx + 20, panel.bottom - 24), centro=True, sombra=False)
-##############################################
+# NIVELES
 
-
-
-# =====================================================================
-# NIVELES: FÁCIL (minijuegos tipo Among Us) / DIFÍCIL (cuestionarios)
-# =====================================================================
 
 dificultad = "dificil"
 tripulacion_pendiente = 1
@@ -5105,7 +5100,7 @@ def manejar_evento_minijuego(evento):
                             _ganar(mj)
                     else:
                         mj["sel"] = None
-                        error_minijuego(mj, "Ese terminal no coincide con el color del cable.")
+                        error_minijuego(mj, "ERROR DE CONEXION, ESTE NO ES EL COLOR")
         elif tipo == "secuencia":
             for i, r in enumerate(_mj_pads()):
                 if r.collidepoint(pos):
@@ -5276,7 +5271,7 @@ def dibujar_dificultad(mouse, tiempo):
           fuente_mini, SUAVE, (ANCHO // 2, 140), centro=True, sombra=False)
     datos = [
         ("FÁCIL", "1", "MINIJUEGOS", VERDE,
-         ["Tareas tipo Among Us en cada consola:", "cables, secuencias, calibración,",
+         ["Tareas interactivas:", "cables, secuencias, calibración,",
           "limpieza de filtro y descarga de datos.", "Sin cuestionarios."]),
         ("DIFÍCIL", "2", "CUESTIONARIOS", ROJO_CLARO,
          ["Tres preguntas por misión sobre la", "historia real del Apolo 13.",
@@ -5493,7 +5488,258 @@ def main():
         if estado in ("menu", "final", "fallo"):
             dibujar_particulas()
         presentar_pantalla()
+# =====================================================================
+# MAPA: INTERIOR DE COHETE
+# Solo cambia el aspecto del mapa; salas, colisiones y lógica no se tocan.
+# El casco y las paredes se dibujan una sola vez y se guardan en caché.
+# =====================================================================
 
+ACERO_OSC = (9, 17, 29)
+ACERO = (46, 68, 92)
+ACERO_CLARO = (104, 130, 154)
+PIEL = (196, 208, 220)
+PIEL_SOMBRA = (122, 138, 156)
+NARANJA_COHETE = (214, 96, 52)
+
+_CASCO = [(38, 690), (330, 300), (465, 165), (590, 95), (2080, 95),
+          (2220, 155), (2310, 320), (2390, 410), (2480, 480), (2515, 690),
+          (2480, 900), (2390, 970), (2310, 1060), (2220, 1225),
+          (2080, 1285), (590, 1285), (465, 1215), (330, 1080)]
+_CASCO_INT = [(362, 313), (482, 184), (605, 113), (2068, 113), (2205, 174),
+              (2290, 335), (2372, 425), (2460, 493), (2493, 690),
+              (2460, 887), (2372, 955), (2290, 1045), (2205, 1206),
+              (2068, 1267), (605, 1267), (482, 1196), (362, 1067)]
+_ALETA = [(1760, 100), (2230, 12), (2410, 12), (2330, 250)]
+_CANARD = [(430, 190), (520, 30), (600, 30), (585, 110)]
+
+_cache_casco = None
+_cache_salas = {}
+
+
+def _esp(poligono, espejo):
+    """Refleja un polígono respecto al eje horizontal de la nave."""
+    return [(x, MUNDO_ALTO - y if espejo else y) for x, y in poligono]
+
+
+def _recortar(poligono, pintar):
+    """Pinta una capa y la recorta con la silueta del cohete."""
+    capa = pygame.Surface((MUNDO_ANCHO, MUNDO_ALTO), pygame.SRCALPHA)
+    pintar(capa)
+    mascara = pygame.Surface(capa.get_size(), pygame.SRCALPHA)
+    pygame.draw.polygon(mascara, (255, 255, 255, 255), poligono)
+    capa.blit(mascara, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    return capa
+
+
+def _capa_estructura(c):
+    """Estructura interna: costillas, larguerillos, anillos, tuberías y placa de empuje."""
+    for y in range(80, 1300, 3):
+        t = min(1.0, abs(y - 690) / 600)
+        pygame.draw.line(c, mezclar((22, 38, 58), (8, 15, 27), t ** 1.5),
+                         (0, y), (MUNDO_ANCHO, y), 3)
+    for k in range(-10, 11):
+        y = 690 + k * 62
+        pygame.draw.line(c, (26, 43, 62), (0, y), (MUNDO_ANCHO, y), 1)
+    for x in range(140, 2520, 46):
+        if (x // 46) % 2 == 0:
+            pygame.draw.line(c, (34, 56, 80), (x, 80), (x, 1300), 3)
+        else:
+            pygame.draw.line(c, (24, 40, 58), (x, 80), (x, 1300), 1)
+
+    # Anillos entre etapas, como las franjas de un Saturno V.
+    for xb in (360, 1010, 1690, 2380):
+        pygame.draw.rect(c, (8, 14, 24), (xb - 16, 0, 6, MUNDO_ALTO))
+        pygame.draw.rect(c, (96, 112, 130), (xb - 10, 0, 20, MUNDO_ALTO))
+        pygame.draw.rect(c, (8, 14, 24), (xb + 10, 0, 6, MUNDO_ALTO))
+        for y in range(90, 1300, 40):
+            pygame.draw.circle(c, (58, 72, 88), (xb, y), 2)
+
+    # Punta de la nariz pintada.
+    pygame.draw.rect(c, (190, 70, 50), (0, 0, 84, MUNDO_ALTO))
+    pygame.draw.rect(c, PIEL, (84, 0, 20, MUNDO_ALTO))
+
+    # Tuberías de propelente: oxígeno líquido (azul) y combustible (naranja).
+    for y, col, claro in ((120, (58, 128, 196), (120, 186, 240)),
+                          (129, (198, 112, 56), (240, 170, 104)),
+                          (1250, (58, 128, 196), (120, 186, 240)),
+                          (1259, (198, 112, 56), (240, 170, 104))):
+        pygame.draw.line(c, (6, 12, 20), (130, y), (2300, y), 7)
+        pygame.draw.line(c, col, (130, y), (2300, y), 5)
+        pygame.draw.line(c, claro, (130, y - 1), (2300, y - 1), 1)
+        for x in range(170, 2300, 140):
+            pygame.draw.rect(c, ACERO_CLARO, (x, y - 5, 6, 11), border_radius=2)
+
+    # Placa de empuje detrás de las toberas.
+    placa = pygame.Rect(2398, 470, 46, 440)
+    pygame.draw.rect(c, (24, 38, 54), placa, border_radius=6)
+    pygame.draw.rect(c, ACERO_CLARO, placa, 2, border_radius=6)
+    for y in range(486, 905, 28):
+        pygame.draw.circle(c, (150, 168, 184), (placa.x + 9, y), 2)
+        pygame.draw.circle(c, (150, 168, 184), (placa.right - 9, y), 2)
+    for y in (560, 690, 820):
+        pygame.draw.circle(c, NARANJA_COHETE, (placa.centerx, y), 9, 2)
+
+
+def _remaches_borde(s, poligono, paso):
+    """Remaches de la piel exterior siguiendo el borde del casco."""
+    for a, b in zip(poligono, poligono[1:] + poligono[:1]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        largo = math.hypot(dx, dy)
+        n = max(1, int(largo // paso))
+        for i in range(1, n):
+            x = a[0] + dx * i / n
+            y = a[1] + dy * i / n
+            vx, vy = 1277 - x, 690 - y
+            d = math.hypot(vx, vy) or 1
+            pygame.draw.circle(s, (92, 108, 124), (int(x + vx / d * 7), int(y + vy / d * 7)), 2)
+
+
+def _pintar_paredes(s):
+    """Mamparos, suelos rejillados de pasillo y bastidores técnicos."""
+    for z in ZONAS:
+        pygame.draw.rect(s, (6, 12, 20), z.inflate(GROSOR_PARED * 2 + 4, GROSOR_PARED * 2 + 4),
+                         border_radius=11)
+    for z in ZONAS:
+        pygame.draw.rect(s, (62, 90, 118), z.inflate(GROSOR_PARED * 2, GROSOR_PARED * 2),
+                         border_radius=10)
+    for z in ZONAS:
+        pygame.draw.rect(s, SUELO, z, border_radius=6)
+
+    for p in [PASILLO] + PASILLOS_EXTRA:
+        pygame.draw.rect(s, (19, 35, 55), p, border_radius=6)
+        for x in range(p.x + 24, p.right - 10, 54):
+            pygame.draw.line(s, (11, 22, 36), (x, p.y + 4), (x, p.bottom - 4), 1)
+        for x in range(p.x + 8, p.right - 14, 28):
+            pygame.draw.rect(s, (150, 112, 40), (x, p.y + 3, 14, 3))
+            pygame.draw.rect(s, (30, 24, 12), (x + 14, p.y + 3, 14, 3))
+            pygame.draw.rect(s, (150, 112, 40), (x, p.bottom - 6, 14, 3))
+            pygame.draw.rect(s, (30, 24, 12), (x + 14, p.bottom - 6, 14, 3))
+
+    # Bastidores de equipo en lugar de simples bloques.
+    for i, m in enumerate(MUROS_LABERINTO):
+        marco = m.inflate(6, 6)
+        pygame.draw.rect(s, (10, 20, 32), marco, border_radius=3)
+        pygame.draw.rect(s, (96, 124, 148), marco, 1, border_radius=3)
+        pygame.draw.rect(s, (28, 46, 64), m, border_radius=2)
+        pygame.draw.line(s, (59, 91, 116), (m.x + 1, m.centery), (m.right - 2, m.centery), 1)
+        pygame.draw.circle(s, VERDE if i % 3 else AMARILLO, (m.centerx, m.y + 2), 1)
+
+
+def _construir_casco():
+    """Compone el exterior del cohete y el interior estático en una sola superficie."""
+    s = pygame.Surface((MUNDO_ANCHO, MUNDO_ALTO), pygame.SRCALPHA)
+
+    # Aletas traseras y aletas delanteras.
+    for espejo in (False, True):
+        for forma in (_ALETA, _CANARD):
+            p = _esp(forma, espejo)
+            pygame.draw.polygon(s, (24, 38, 56), p)
+            cx = sum(x for x, _ in p) / len(p)
+            cy = sum(y for _, y in p) / len(p)
+            pygame.draw.polygon(s, (150, 54, 44),
+                                [(cx + (x - cx) * 0.62, cy + (y - cy) * 0.62) for x, y in p])
+            pygame.draw.polygon(s, ACERO_CLARO, p, 3)
+
+    # Cuerpo del cohete.
+    pygame.draw.polygon(s, (9, 18, 31), _CASCO)
+    s.blit(_recortar(_CASCO, _capa_estructura), (0, 0))
+
+    # Piel exterior con remaches y junta interior.
+    pygame.draw.lines(s, PIEL_SOMBRA, True, _CASCO, 14)
+    pygame.draw.lines(s, PIEL, True, _CASCO, 9)
+    for punto in _CASCO:
+        pygame.draw.circle(s, PIEL_SOMBRA, punto, 7)
+        pygame.draw.circle(s, PIEL, punto, 4)
+    pygame.draw.lines(s, (64, 92, 118), True, _CASCO_INT, 2)
+    _remaches_borde(s, _CASCO, 42)
+
+    # Ojos de buey en la piel superior e inferior.
+    for y in (108, 1272):
+        for x in range(640, 2080, 120):
+            pygame.draw.circle(s, PIEL_SOMBRA, (x, y), 6)
+            pygame.draw.circle(s, (14, 40, 74), (x, y), 4)
+            pygame.draw.circle(s, (120, 190, 240), (x - 1, y - 1), 1)
+
+    # Pararrayos de la nariz.
+    pygame.draw.line(s, PIEL, (38, 690), (8, 690), 3)
+    pygame.draw.circle(s, NARANJA_COHETE, (8, 690), 4)
+
+    # Cabina de mando: marco del parabrisas y panel de instrumentos.
+    pygame.draw.rect(s, (18, 32, 48), (118, 618, 176, 36), border_radius=10)
+    pygame.draw.rect(s, ACERO_CLARO, (118, 618, 176, 36), 2, border_radius=10)
+    panel = pygame.Rect(130, 736, 150, 34)
+    pygame.draw.rect(s, (12, 24, 40), panel, border_radius=6)
+    pygame.draw.rect(s, ACERO_CLARO, panel, 1, border_radius=6)
+    for i, x in enumerate((160, 205, 250)):
+        pygame.draw.circle(s, (30, 52, 72), (x, 753), 10)
+        pygame.draw.circle(s, (96, 124, 148), (x, 753), 10, 1)
+        ang = math.radians(200 + i * 40)
+        pygame.draw.line(s, AMARILLO, (x, 753), (x + int(math.cos(ang) * 7), 753 + int(math.sin(ang) * 7)), 1)
+    for i in range(6):
+        pygame.draw.circle(s, VERDE if i % 2 else AMARILLO, (141 + i * 25, 764), 2)
+
+    _pintar_paredes(s)
+    return s
+
+
+def dibujar_casco_anexo():
+    """Casco del cohete (se dibuja una vez y se reutiliza)."""
+    global _cache_casco
+    if _cache_casco is None:
+        _cache_casco = _construir_casco()
+    pantalla.blit(_cache_casco, (0, 0))
+
+
+def dibujar_paredes():
+    """Las paredes y suelos ya van incluidos en la caché del casco."""
+    pass
+
+
+def _capa_sala(sala):
+    """Rejilla de suelo y refuerzos estructurales de una sala (en caché)."""
+    w, h = sala.size
+    c = pygame.Surface((w, h), pygame.SRCALPHA)
+    for x in range(14, w - 10, 22):
+        pygame.draw.line(c, (46, 70, 94, 60), (x, 10), (x, h - 10), 1)
+    for y in range(14, h - 10, 22):
+        pygame.draw.line(c, (46, 70, 94, 60), (10, y), (w - 10, y), 1)
+    for x in (8, w - 9):
+        pygame.draw.line(c, (84, 110, 134, 200), (x, 14), (x, h - 14), 2)
+    for px, py, sx, sy in ((8, 8, 1, 1), (w - 8, 8, -1, 1), (8, h - 8, 1, -1), (w - 8, h - 8, -1, -1)):
+        pygame.draw.polygon(c, (74, 100, 126, 230),
+                            [(px, py), (px + sx * 20, py), (px, py + sy * 20)])
+        pygame.draw.circle(c, NARANJA_COHETE, (px + sx * 4, py + sy * 4), 2)
+    return c
+
+
+def dibujar_marco_sala(sala):
+    """Mamparo de la sala con rejilla de suelo, refuerzos y remaches."""
+    clave = tuple(sala)
+    capa = _cache_salas.get(clave)
+    if capa is None:
+        capa = _cache_salas[clave] = _capa_sala(sala)
+    pantalla.blit(capa, sala.topleft)
+    pygame.draw.rect(pantalla, (26, 43, 61), sala, 6, border_radius=10)
+    pygame.draw.rect(pantalla, PARED, sala, 2, border_radius=10)
+    pygame.draw.rect(pantalla, (78, 105, 129), sala.inflate(-8, -8), 1, border_radius=8)
+    for x in range(sala.x + 36, sala.right - 24, 96):
+        pygame.draw.circle(pantalla, (121, 145, 164), (x, sala.y + 3), 1)
+        pygame.draw.circle(pantalla, (121, 145, 164), (x, sala.bottom - 3), 1)
+
+
+# Luces de navegación parpadeantes sobre el exterior del cohete.
+_dibujar_nave_base = dibujar_nave
+
+
+def dibujar_nave(tiempo):
+    _dibujar_nave_base(tiempo)
+    encendida = int(tiempo * 1.5) % 2 == 0
+    estroboscopica = int(tiempo * 3) % 8 == 0
+    for (x, y), color, activa in (((2398, 22), ROJO, encendida),
+                                  ((2398, 1358), VERDE, encendida),
+                                  ((10, 690), BLANCO, estroboscopica)):
+        pygame.draw.circle(pantalla, mezclar(ACERO_OSC, color, 0.35 if not activa else 0.6), (x, y), 9)
+        pygame.draw.circle(pantalla, color if activa else mezclar(ACERO_OSC, color, 0.3), (x, y), 4)
     
 
 if __name__ == "__main__":
