@@ -1,9 +1,0 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fase 2 · Operación</title><link rel="stylesheet" href="style.css"></head>
-<body><div class="stars"></div><div class="wrap" style="max-width:700px"><div class="panel"><h2>11 de abril de 1970</h2><p id="t" style="min-height:11em"></p>
-<a class="btn go" href="Mision.html?m=1">Iniciar operación</a></div></div>
-<script src="Misiones.js"></script><script src="Game.js"></script><script>
-const scenario=SCENARIOS[S&&S.scenario||'apollo'];
-document.querySelector('h2').textContent=scenario.name+' · Fase 2';
-const T=(S&&S.scenario!=='apollo')?`El diseño está aprobado para ${S.objective||scenario.objectives[0]}. Cada operación pondrá a prueba la energía, la carga científica y el enlace que eligieron. Las decisiones del equipo cambiarán el resultado y el informe final explicará por qué.`:"Apolo 13 despega rumbo a la Luna con James Lovell, Jack Swigert y Fred Haise. Tras la explosión, ya no se trata de alunizar, sino de volver con vida. El diseño elegido determina la energía inicial y el ritmo de consumo. Tus decisiones operativas decidirán si la tripulación regresa.";
-let i=0;const e=$('#t');(function w(){e.textContent=T.slice(0,i++);if(i<=T.length)setTimeout(w,28)})();
-</script></body></html>
