@@ -4859,7 +4859,642 @@ def dibujar_ficha(mouse, tiempo):
     texto(FICHA_FUENTE, fuente_micro, APAGADO, (panel.centerx + 20, panel.bottom - 40), centro=True, sombra=False)
     texto("← →  cambiar página   ·   ESC  cerrar", fuente_micro, APAGADO,
           (panel.centerx + 20, panel.bottom - 24), centro=True, sombra=False)
+##############################################
 
+
+
+# =====================================================================
+# NIVELES: FÁCIL (minijuegos tipo Among Us) / DIFÍCIL (cuestionarios)
+# =====================================================================
+
+dificultad = "dificil"
+tripulacion_pendiente = 1
+minijuego = None
+
+botones_dificultad = [pygame.Rect(170, 190, 440, 330), pygame.Rect(670, 190, 440, 330)]
+MJ = pygame.Rect(190, 100, 900, 520)
+
+TIPO_MINIJUEGO = {
+    "ENERGIA": "cables", "OXIGENO": "filtro", "NAVEGACION": "calibrar",
+    "COMUNICACIONES": "secuencia", "SOPORTE VITAL": "filtro", "TELEMETRIA": "descarga",
+}
+INFO_MINIJUEGO = {
+    "cables": ("CONECTAR CABLES", "Elige un cable de la izquierda y únelo con su terminal del mismo color."),
+    "secuencia": ("SECUENCIA DE SEÑALES", "Memoriza la secuencia y repítela con clic o con las teclas 1-4."),
+    "calibrar": ("CALIBRAR SISTEMA", "Detén el marcador dentro de la zona verde 3 veces (ESPACIO o clic)."),
+    "filtro": ("LIMPIAR FILTRO", "Haz clic en todos los residuos para despejar el filtro."),
+    "descarga": ("DESCARGAR DATOS", "Inicia la transferencia y espera a que llegue al 100 %."),
+}
+COLORES_CABLE = [ROJO, AZUL, AMARILLO, VERDE]
+
+
+def _mj_cables():
+    izq = [pygame.Rect(MJ.x + 150, MJ.y + 170 + i * 80, 70, 46) for i in range(4)]
+    der = [pygame.Rect(MJ.right - 220, MJ.y + 170 + i * 80, 70, 46) for i in range(4)]
+    return izq, der
+
+
+def _mj_pads():
+    return [pygame.Rect(MJ.centerx - 232 + (i % 2) * 244, MJ.y + 170 + (i // 2) * 140, 220, 126)
+            for i in range(4)]
+
+
+def _mj_barra():
+    return pygame.Rect(MJ.x + 100, MJ.y + 250, MJ.width - 200, 50)
+
+
+def _mj_boton_descarga():
+    return pygame.Rect(MJ.centerx - 110, MJ.y + 400, 220, 54)
+
+
+def _mj_zona_filtro():
+    return pygame.Rect(MJ.x + 50, MJ.y + 150, MJ.width - 100, 310)
+
+
+def iniciar_minijuego(indice, jugador=None):
+    """Abre el minijuego correspondiente a la sala de la misión."""
+    global minijuego, estado
+    tipo = TIPO_MINIJUEGO[misiones[indice]["sala"]]
+    mj = {"tipo": tipo, "idx": indice, "jugador": jugador, "t": 0.0, "errores": 0,
+          "exito": None, "msg": "", "msg_t": 0.0}
+    if tipo == "cables":
+        mj.update(der=random.sample(range(4), 4), sel=None, hechos=set())
+    elif tipo == "secuencia":
+        mj.update(sec=[random.randrange(4) for _ in range(4)], fase="mostrar", tf=0.0,
+                  paso=0, luz=-1, flash=[0.0] * 4)
+    elif tipo == "calibrar":
+        mj.update(p=0.0, dir=1, zona=random.uniform(0.2, 0.8), aciertos=0, flash=0.0, flash_ok=True)
+    elif tipo == "filtro":
+        z = _mj_zona_filtro()
+        mj["residuos"] = [{"x": random.uniform(z.x + 30, z.right - 30),
+                           "y": random.uniform(z.y + 30, z.bottom - 30),
+                           "vx": random.uniform(-35, 35), "vy": random.uniform(-35, 35),
+                           "r": random.randint(16, 24),
+                           "c": random.choice([(140, 110, 70), (90, 150, 90), (170, 130, 80)])}
+                          for _ in range(8)]
+    else:
+        mj.update(activo=False, prog=0.0)
+    minijuego = mj
+    estado = "minijuego"
+    pygame.mouse.set_visible(True)
+
+
+def cerrar_minijuego():
+    global minijuego, estado
+    minijuego = None
+    estado = "juego"
+
+
+def _ganar(mj):
+    mj["exito"] = 0.0
+
+
+def error_minijuego(mj, mensaje):
+    """Castiga el recurso de la misión (la mitad que un error de cuestionario)."""
+    global sacudida
+    mj["errores"] += 1
+    rec = misiones[mj["idx"]]["recurso"]
+    pen = PENAL / 2
+    if rec == "co2":
+        recursos[rec] = min(99.0, recursos[rec] + pen)
+    else:
+        recursos[rec] = max(0.0, recursos[rec] - pen)
+    sacudida = 0.2
+    mj["msg"], mj["msg_t"] = mensaje, 1.5
+
+
+def completar_minijuego():
+    """Entrega la recompensa reutilizando la lógica de misión completada."""
+    global minijuego, formulario, estado
+    mj = minijuego
+    minijuego = None
+    estado = "juego"
+    ficha = {"idx": mj["idx"], "exito": 1.9, "con_errores": mj["errores"] > 0, "campos": []}
+    if len(jugadores) > 1 and mj["jugador"] is not None:
+        formularios_multijugador[mj["jugador"].nombre] = ficha
+        finalizar_exito_multijugador(mj["jugador"].nombre)
+    else:
+        formulario = ficha
+        finalizar_exito()
+
+
+# Si el nivel es fácil se abre un minijuego; si es difícil, el cuestionario original.
+_abrir_formulario_cuestionario = abrir_formulario
+_abrir_formulario_mj_cuestionario = abrir_formulario_multijugador
+
+
+def abrir_formulario():
+    if dificultad != "facil":
+        return _abrir_formulario_cuestionario()
+    if not en_consola_mision():
+        return
+    iniciar_minijuego(mision_actual, responsable_actual())
+
+
+def abrir_formulario_multijugador(jugador):
+    if dificultad != "facil":
+        return _abrir_formulario_mj_cuestionario(jugador)
+    indice = mision_para_jugador(jugador)
+    if indice is None or not en_consola_mision(jugador):
+        return
+    iniciar_minijuego(indice, jugador)
+
+
+def _pulsar_pad(mj, i):
+    if mj["fase"] != "repetir":
+        return
+    mj["flash"][i] = 0.3
+    if mj["sec"][mj["paso"]] == i:
+        mj["paso"] += 1
+        if mj["paso"] >= len(mj["sec"]):
+            _ganar(mj)
+    else:
+        error_minijuego(mj, "Secuencia incorrecta. Observa de nuevo.")
+        mj["fase"], mj["tf"], mj["paso"] = "mostrar", 0.0, 0
+
+
+def _pulsar_calibrar(mj):
+    mj["flash"] = 0.35
+    if abs(mj["p"] - mj["zona"]) <= 0.09:
+        mj["flash_ok"] = True
+        mj["aciertos"] += 1
+        mj["zona"] = random.uniform(0.15, 0.85)
+        if mj["aciertos"] >= 3:
+            _ganar(mj)
+    else:
+        mj["flash_ok"] = False
+        error_minijuego(mj, "Fuera de la zona. Inténtalo de nuevo.")
+
+
+def actualizar_minijuego(dt):
+    mj = minijuego
+    if mj is None:
+        return
+    mj["t"] += dt
+    mj["msg_t"] = max(0.0, mj["msg_t"] - dt)
+    if mj["exito"] is not None:
+        mj["exito"] += dt
+        if mj["exito"] >= 1.3:
+            completar_minijuego()
+        return
+    tipo = mj["tipo"]
+    if tipo == "secuencia":
+        mj["flash"] = [max(0.0, f - dt) for f in mj["flash"]]
+        if mj["fase"] == "mostrar":
+            mj["tf"] += dt
+            k = mj["tf"] / 0.8 - 1.0
+            n = len(mj["sec"])
+            if k >= n:
+                mj["fase"], mj["paso"], mj["luz"] = "repetir", 0, -1
+            else:
+                i = int(k) if k >= 0 else -1
+                mj["luz"] = i if (i >= 0 and k - i < 0.65) else -1
+    elif tipo == "calibrar":
+        mj["p"] += mj["dir"] * (0.8 + 0.25 * mj["aciertos"]) * dt
+        if mj["p"] >= 1.0:
+            mj["p"], mj["dir"] = 1.0, -1
+        elif mj["p"] <= 0.0:
+            mj["p"], mj["dir"] = 0.0, 1
+        mj["flash"] = max(0.0, mj["flash"] - dt)
+    elif tipo == "filtro":
+        z = _mj_zona_filtro()
+        for r in mj["residuos"]:
+            r["x"] += r["vx"] * dt
+            r["y"] += r["vy"] * dt
+            if r["x"] < z.x + r["r"] or r["x"] > z.right - r["r"]:
+                r["vx"] *= -1
+                r["x"] = max(z.x + r["r"], min(z.right - r["r"], r["x"]))
+            if r["y"] < z.y + r["r"] or r["y"] > z.bottom - r["r"]:
+                r["vy"] *= -1
+                r["y"] = max(z.y + r["r"], min(z.bottom - r["r"], r["y"]))
+    elif tipo == "descarga":
+        if mj["activo"]:
+            mj["prog"] = min(1.0, mj["prog"] + dt / 5.0)
+            if mj["prog"] >= 1.0:
+                _ganar(mj)
+
+
+def manejar_evento_minijuego(evento):
+    mj = minijuego
+    if mj is None:
+        return
+    if evento.type == pygame.KEYDOWN and evento.key == pygame.K_ESCAPE:
+        cerrar_minijuego()
+        return
+    if mj["exito"] is not None:
+        return
+    tipo = mj["tipo"]
+    if evento.type == pygame.KEYDOWN:
+        if tipo == "calibrar" and evento.key in (pygame.K_SPACE, pygame.K_RETURN):
+            _pulsar_calibrar(mj)
+        elif tipo == "secuencia" and pygame.K_1 <= evento.key <= pygame.K_4:
+            _pulsar_pad(mj, evento.key - pygame.K_1)
+    elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+        pos = convertir_mouse(evento.pos)
+        if tipo == "cables":
+            izq, der = _mj_cables()
+            for i, r in enumerate(izq):
+                if r.collidepoint(pos) and i not in mj["hechos"]:
+                    mj["sel"] = i
+            for j, r in enumerate(der):
+                if r.collidepoint(pos) and mj["sel"] is not None:
+                    if mj["der"][j] == mj["sel"]:
+                        mj["hechos"].add(mj["sel"])
+                        mj["sel"] = None
+                        if len(mj["hechos"]) == 4:
+                            _ganar(mj)
+                    else:
+                        mj["sel"] = None
+                        error_minijuego(mj, "Ese terminal no coincide con el color del cable.")
+        elif tipo == "secuencia":
+            for i, r in enumerate(_mj_pads()):
+                if r.collidepoint(pos):
+                    _pulsar_pad(mj, i)
+        elif tipo == "calibrar":
+            _pulsar_calibrar(mj)
+        elif tipo == "filtro":
+            for r in reversed(mj["residuos"]):
+                if math.hypot(pos[0] - r["x"], pos[1] - r["y"]) <= r["r"] + 6:
+                    mj["residuos"].remove(r)
+                    break
+            if not mj["residuos"]:
+                _ganar(mj)
+        elif tipo == "descarga":
+            if not mj["activo"] and _mj_boton_descarga().collidepoint(pos):
+                mj["activo"] = True
+
+
+def dibujar_minijuego(mouse, dt):
+    mj = minijuego
+    t = mj["t"]
+    tipo = mj["tipo"]
+    m = misiones[mj["idx"]]
+    color_sala = COLORES_SALA[m["sala"]]
+    ap = suave(t / 0.3)
+    rect_alpha(pantalla, (3, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 225 * ap, 0)
+    rect_alpha(pantalla, PANEL_BG, MJ, 252 * ap, 18)
+    pygame.draw.rect(pantalla, mezclar(BORDE, color_sala, 0.7), MJ, 2, border_radius=18)
+
+    met_txt = ("≈ " if m["aprox"] else "") + fmt_met(m["met"])
+    texto(f"TAREA DE MISIÓN {mj['idx'] + 1:02d}/{len(misiones):02d}  ·  MET {met_txt}",
+          fuente_mini_b, AMARILLO, (MJ.x + 30, MJ.y + 18), sombra=False)
+    if mj["jugador"] is not None:
+        texto(mj["jugador"].nombre.upper(), fuente_mini_b, mj["jugador"].color,
+              (MJ.right - 30, MJ.y + 18), derecha=True, sombra=False)
+    texto(m["titulo"], fuente_mediana, BLANCO, (MJ.x + 30, MJ.y + 40), sombra=False)
+    nombre_mj, instruccion = INFO_MINIJUEGO[tipo]
+    texto(nombre_mj, fuente_mini_b, color_sala, (MJ.x + 30, MJ.y + 84), sombra=False)
+    texto(instruccion, fuente_o, SUAVE, (MJ.x + 30, MJ.y + 104), sombra=False)
+    pygame.draw.line(pantalla, LINEA, (MJ.x + 24, MJ.y + 130), (MJ.right - 24, MJ.y + 130), 1)
+
+    nombre_rec, col_rec = RECURSOS_INFO[m["recurso"]]
+    texto(f"Recupera +{int(RECUPERA)}% {nombre_rec.lower()}   ·   cada error penaliza {PENAL / 2:g}%",
+          fuente_mini, APAGADO, (MJ.x + 30, MJ.bottom - 28), sombra=False)
+    texto("ESC  cancelar", fuente_mini, APAGADO, (MJ.right - 30, MJ.bottom - 28),
+          derecha=True, sombra=False)
+    if mj["msg_t"] > 0:
+        texto(mj["msg"], fuente_mini_b, ROJO_CLARO, (MJ.centerx, MJ.y + 470), centro=True, sombra=False)
+
+    if tipo == "cables":
+        izq, der = _mj_cables()
+        for c in mj["hechos"]:
+            j = mj["der"].index(c)
+            pygame.draw.line(pantalla, COLORES_CABLE[c], izq[c].midright, der[j].midleft, 9)
+        if mj["sel"] is not None:
+            pygame.draw.line(pantalla, COLORES_CABLE[mj["sel"]], izq[mj["sel"]].midright, mouse, 6)
+        for i, r in enumerate(izq):
+            pygame.draw.rect(pantalla, (20, 34, 54), r.inflate(16, 10), border_radius=8)
+            pygame.draw.rect(pantalla, COLORES_CABLE[i], r, border_radius=6)
+            if i == mj["sel"]:
+                pygame.draw.rect(pantalla, BLANCO, r.inflate(10, 8), 2, border_radius=8)
+        for j, r in enumerate(der):
+            pygame.draw.rect(pantalla, (20, 34, 54), r.inflate(16, 10), border_radius=8)
+            pygame.draw.rect(pantalla, COLORES_CABLE[mj["der"][j]], r, border_radius=6)
+        texto(f"CONEXIONES  {len(mj['hechos'])}/4", fuente_mini_b, SUAVE,
+              (MJ.centerx, MJ.y + 148), centro=True, sombra=False)
+
+    elif tipo == "secuencia":
+        if mj["fase"] == "mostrar":
+            estado_txt, col_est = "OBSERVA LA SECUENCIA", AMARILLO
+        else:
+            estado_txt, col_est = f"REPITE LA SECUENCIA  {mj['paso']}/{len(mj['sec'])}", VERDE
+        texto(estado_txt, fuente_mini_b, col_est, (MJ.centerx, MJ.y + 148), centro=True, sombra=False)
+        for i, r in enumerate(_mj_pads()):
+            encendido = (mj["fase"] == "mostrar" and mj["luz"] >= 0 and mj["sec"][mj["luz"]] == i) \
+                or mj["flash"][i] > 0
+            pygame.draw.rect(pantalla, mezclar((12, 24, 40), COLORES_CABLE[i], 0.95 if encendido else 0.25),
+                             r, border_radius=14)
+            pygame.draw.rect(pantalla, COLORES_CABLE[i], r, 2, border_radius=14)
+            texto(str(i + 1), fuente_grande, BLANCO if encendido else SUAVE, r.center,
+                  centro=True, sombra=False)
+
+    elif tipo == "calibrar":
+        barra = _mj_barra()
+        pygame.draw.rect(pantalla, (12, 24, 40), barra, border_radius=10)
+        pygame.draw.rect(pantalla, BORDE, barra, 2, border_radius=10)
+        zona = pygame.Rect(barra.x + int((mj["zona"] - 0.09) * barra.width), barra.y + 4,
+                           int(0.18 * barra.width), barra.height - 8)
+        pygame.draw.rect(pantalla, mezclar((12, 24, 40), VERDE, 0.55), zona, border_radius=6)
+        pygame.draw.rect(pantalla, VERDE, zona, 2, border_radius=6)
+        mx = barra.x + int(mj["p"] * barra.width)
+        col_m = (VERDE if mj["flash_ok"] else ROJO) if mj["flash"] > 0 else BLANCO
+        pygame.draw.line(pantalla, col_m, (mx, barra.y - 12), (mx, barra.bottom + 12), 5)
+        for i in range(3):
+            pygame.draw.circle(pantalla, VERDE if i < mj["aciertos"] else BORDE,
+                               (MJ.centerx - 40 + i * 40, barra.bottom + 70), 11,
+                               0 if i < mj["aciertos"] else 2)
+        texto("ESPACIO o CLIC para fijar", fuente_mini_b, SUAVE,
+              (MJ.centerx, barra.bottom + 120), centro=True, sombra=False)
+
+    elif tipo == "filtro":
+        z = _mj_zona_filtro()
+        pygame.draw.rect(pantalla, (10, 22, 36), z, border_radius=12)
+        pygame.draw.rect(pantalla, BORDE, z, 2, border_radius=12)
+        for x in range(z.x + 30, z.right, 40):
+            pygame.draw.line(pantalla, (22, 40, 58), (x, z.y + 6), (x, z.bottom - 6), 1)
+        for y in range(z.y + 30, z.bottom, 40):
+            pygame.draw.line(pantalla, (22, 40, 58), (z.x + 6, y), (z.right - 6, y), 1)
+        for r in mj["residuos"]:
+            pygame.draw.circle(pantalla, r["c"], (int(r["x"]), int(r["y"])), r["r"])
+            pygame.draw.circle(pantalla, mezclar(r["c"], BLANCO, 0.35),
+                               (int(r["x"]), int(r["y"])), r["r"], 2)
+        texto(f"RESIDUOS  {len(mj['residuos'])}", fuente_mini_b, SUAVE,
+              (MJ.centerx, MJ.y + 142), centro=True, sombra=False)
+
+    elif tipo == "descarga":
+        izq = pygame.Rect(MJ.x + 80, MJ.y + 210, 190, 120)
+        der = pygame.Rect(MJ.right - 270, MJ.y + 210, 190, 120)
+        for caja, nombre in ((izq, "ODYSSEY"), (der, "HOUSTON")):
+            pygame.draw.rect(pantalla, (12, 24, 40), caja, border_radius=12)
+            pygame.draw.rect(pantalla, color_sala, caja, 2, border_radius=12)
+            texto(nombre, fuente_mini_b, BLANCO, caja.center, centro=True, sombra=False)
+        bar = pygame.Rect(izq.right + 30, MJ.y + 260, der.x - izq.right - 60, 20)
+        pygame.draw.rect(pantalla, (20, 34, 54), bar, border_radius=6)
+        pygame.draw.rect(pantalla, VERDE, (bar.x, bar.y, int(bar.width * mj["prog"]), bar.height),
+                         border_radius=6)
+        pygame.draw.rect(pantalla, BORDE, bar, 1, border_radius=6)
+        if mj["activo"]:
+            for k in range(4):
+                px = bar.x + int((t * 110 + k * bar.width / 4) % bar.width)
+                pygame.draw.rect(pantalla, AMARILLO, (px, bar.y - 16, 8, 8))
+        texto(f"{int(mj['prog'] * 100)} %", fuente_mediana, BLANCO,
+              (bar.centerx, bar.bottom + 30), centro=True, sombra=False)
+        if not mj["activo"]:
+            btn = _mj_boton_descarga()
+            hover = btn.collidepoint(mouse)
+            rect_alpha(pantalla, AMARILLO if hover else (30, 94, 143), btn, 255, 10)
+            texto("INICIAR", fuente, (20, 16, 4) if hover else BLANCO, btn.center,
+                  centro=True, sombra=False)
+
+    if mj["exito"] is not None:
+        p = mj["exito"]
+        rect_alpha(pantalla, PANEL_BG, MJ, min(235, p * 900), 18)
+        cx, cy = MJ.centerx, MJ.centery - 30
+        pygame.draw.circle(pantalla, VERDE, (cx, cy), 54, 5)
+        pygame.draw.lines(pantalla, VERDE, False, [(cx - 22, cy + 2), (cx - 6, cy + 20), (cx + 26, cy - 18)], 6)
+        texto("TAREA COMPLETADA", fuente_grande, VERDE, (cx, cy + 100), centro=True, sombra=False)
+        texto(f"+{int(RECUPERA)} % {nombre_rec}", fuente, col_rec, (cx, cy + 142),
+              centro=True, sombra=False)
+
+
+# ---------- selección de nivel ----------
+
+def elegir_dificultad(nivel):
+    global dificultad, estado, minijuego
+    dificultad = nivel
+    minijuego = None
+    crear_jugadores(tripulacion_pendiente)
+    estado = "juego"
+    sonido_inicio.play()
+
+
+def dibujar_dificultad(mouse, tiempo):
+    dibujar_fondo(tiempo)
+    rect_alpha(pantalla, (2, 7, 16), pygame.Rect(0, 0, ANCHO, ALTO), 150, 0)
+    texto("SELECCIONA EL NIVEL", fuente_grande, BLANCO, (ANCHO // 2, 100), centro=True)
+    texto(f"{tripulacion_pendiente} {'tripulante' if tripulacion_pendiente == 1 else 'tripulantes'}",
+          fuente_mini, SUAVE, (ANCHO // 2, 140), centro=True, sombra=False)
+    datos = [
+        ("FÁCIL", "1", "MINIJUEGOS", VERDE,
+         ["Tareas tipo Among Us en cada consola:", "cables, secuencias, calibración,",
+          "limpieza de filtro y descarga de datos.", "Sin cuestionarios."]),
+        ("DIFÍCIL", "2", "CUESTIONARIOS", ROJO_CLARO,
+         ["Tres preguntas por misión sobre la", "historia real del Apolo 13.",
+          "Cada error castiga el sistema.", "Solo cuestionarios."]),
+    ]
+    pulso = 0.5 + 0.5 * math.sin(tiempo * 4)
+    for i, (nombre, tecla, sub, color, lineas) in enumerate(datos):
+        caja = botones_dificultad[i]
+        hover = caja.collidepoint(mouse)
+        if hover:
+            rect_alpha(pantalla, color, caja.inflate(12, 12), 28 + 24 * pulso, 20)
+        rect_alpha(pantalla, (8, 18, 35), caja, 250, 18)
+        pygame.draw.rect(pantalla, color if hover else BORDE, caja, 2 if hover else 1, border_radius=18)
+        pygame.draw.line(pantalla, color, (caja.x + 30, caja.y + 2), (caja.right - 30, caja.y + 2), 3)
+        texto(f"[{tecla}]", fuente_mini_b, APAGADO, (caja.right - 24, caja.y + 20), derecha=True, sombra=False)
+        texto(nombre, titulo, color, (caja.x + 30, caja.y + 26), sombra=False)
+        texto(sub, fuente_mini_b, SUAVE, (caja.x + 32, caja.y + 106), sombra=False)
+        for k, linea in enumerate(lineas):
+            texto(linea, fuente_o, BLANCO, (caja.x + 32, caja.y + 144 + k * 26), sombra=False)
+        if i == 0:
+            for k, c in enumerate(COLORES_CABLE):
+                pygame.draw.circle(pantalla, c, (caja.x + 46 + k * 34, caja.bottom - 40), 11)
+        else:
+            texto("?  ?  ?", fuente_mediana, color, (caja.x + 32, caja.bottom - 58), sombra=False)
+    texto("Clic o pulsa 1 / 2   ·   ESC  volver", fuente_mini, APAGADO,
+          (ANCHO // 2, 580), centro=True, sombra=False)
+
+
+# ---------- bucle principal con selección de nivel y minijuegos ----------
+
+def main():
+    """Ejecuta el bucle principal de eventos, simulación y renderizado."""
+    global estado, tiempo_pausa, tripulacion_pendiente
+    while True:
+        dt = min(clock.tick(60) / 1000, 0.05)
+        tiempo = pygame.time.get_ticks() / 1000
+        mouse = convertir_mouse(pygame.mouse.get_pos())
+
+        for evento in pygame.event.get():
+            if evento.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if evento.type == pygame.KEYDOWN and evento.key == pygame.K_F11:
+                cambiar_modo_pantalla()
+
+            if estado == "menu":
+                if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    for i, boton in enumerate(botones_menu):
+                        if boton.collidepoint(pos):
+                            tripulacion_pendiente = i + 1
+                            estado = "dificultad"
+                            break
+                    else:
+                        if boton_ficha.collidepoint(pos):
+                            abrir_ficha()
+                if evento.type == pygame.KEYDOWN and evento.key == pygame.K_f:
+                    abrir_ficha()
+                elif evento.type == pygame.KEYDOWN and pygame.K_1 <= evento.key <= pygame.K_4:
+                    tripulacion_pendiente = evento.key - pygame.K_0
+                    estado = "dificultad"
+
+            elif estado == "dificultad":
+                if evento.type == pygame.KEYDOWN:
+                    if evento.key in (pygame.K_1, pygame.K_KP1, pygame.K_f):
+                        elegir_dificultad("facil")
+                    elif evento.key in (pygame.K_2, pygame.K_KP2, pygame.K_d):
+                        elegir_dificultad("dificil")
+                    elif evento.key == pygame.K_ESCAPE:
+                        estado = "menu"
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    if botones_dificultad[0].collidepoint(pos):
+                        elegir_dificultad("facil")
+                    elif botones_dificultad[1].collidepoint(pos):
+                        elegir_dificultad("dificil")
+
+            elif estado == "ficha":
+                manejar_evento_ficha(evento)
+
+            elif estado == "juego":
+                if evento.type == pygame.KEYDOWN:
+                    if evento.key == pygame.K_ESCAPE:
+                        tiempo_pausa = tiempo
+                        estado = "pausa"
+                    elif evento.key == pygame.K_m:
+                        tiempo_pausa = tiempo
+                        estado = "mapa"
+                    elif len(jugadores) > 1:
+                        manejar_tecla_multijugador(evento.key)
+                    elif evento.key == pygame.K_e:
+                        if en_consola_mision():
+                            abrir_formulario()
+                        else:
+                            interactuar_servicios(responsable_actual())
+
+            elif estado == "minijuego":
+                manejar_evento_minijuego(evento)
+
+            elif estado == "mapa":
+                if evento.type == pygame.KEYDOWN and evento.key in (pygame.K_ESCAPE, pygame.K_m):
+                    estado = "juego"
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    if boton_cerrar_mapa.collidepoint(pos):
+                        estado = "juego"
+
+            elif estado == "pausa":
+                if evento.type == pygame.KEYDOWN:
+                    if evento.key in (pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER):
+                        estado = "juego"
+                    elif evento.key == pygame.K_m:
+                        volver_al_menu_desde_pausa()
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    if botones_pausa[0].collidepoint(pos):
+                        estado = "juego"
+                    elif botones_pausa[1].collidepoint(pos):
+                        volver_al_menu_desde_pausa()
+
+            elif estado == "formulario" and formulario and formulario["exito"] is None:
+                f = formulario
+                if evento.type == pygame.KEYDOWN:
+                    k = evento.key
+                    if k == pygame.K_ESCAPE:
+                        cerrar_formulario()
+                    elif k in (pygame.K_UP, pygame.K_w):
+                        f["foco"] = max(0, f["foco"] - 1)
+                    elif k in (pygame.K_DOWN, pygame.K_s):
+                        f["foco"] = min(len(f["campos"]) - 1, f["foco"] + 1)
+                    elif pygame.K_1 <= k <= pygame.K_3:
+                        elegir(f["foco"], k - pygame.K_1, avanzar=True)
+                    elif k in (pygame.K_RETURN, pygame.K_KP_ENTER):
+                        enviar_formulario()
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    pos = convertir_mouse(evento.pos)
+                    lp = (pos[0] - f["origen"][0], pos[1] - f["origen"][1])
+                    for ci, oi, rect in f["zonas"]:
+                        if rect.collidepoint(lp):
+                            elegir(ci, oi)
+                    if f["btn_enviar"] and f["btn_enviar"].collidepoint(lp):
+                        enviar_formulario()
+                    elif f["btn_cerrar"] and f["btn_cerrar"].collidepoint(lp):
+                        cerrar_formulario()
+
+            elif estado in ("final", "fallo"):
+                if evento.type == pygame.KEYDOWN and evento.key in (pygame.K_RETURN, pygame.K_r):
+                    estado = "menu"
+                    jugadores.clear()
+                    particulas.clear()
+
+        if estado not in ("pausa", "mapa"):
+            actualizar_efectos(dt)
+
+        if estado in ("juego", "formulario", "minijuego"):
+            if estado == "juego":
+                teclas = pygame.key.get_pressed()
+                for i, jugador in enumerate(jugadores):
+                    if jugador.ejercicio_restante > 0:
+                        continue
+                    if len(jugadores) > 1 and jugador.nombre in formularios_multijugador:
+                        continue
+                    jugador.mover(teclas, controles[i], dt)
+            actualizar_recursos(dt)
+            if estado == "minijuego":
+                actualizar_minijuego(dt)
+            if len(jugadores) > 1:
+                actualizar_formularios_multijugador(dt)
+            else:
+                actualizar_formulario(dt)
+
+        if estado == "menu":
+            dibujar_menu(mouse, tiempo)
+        elif estado == "dificultad":
+            dibujar_dificultad(mouse, tiempo)
+        elif estado == "ficha":
+            dibujar_ficha(mouse, tiempo)
+        elif estado in ("juego", "formulario", "minijuego", "pausa", "mapa"):
+            tiempo_escena = tiempo_pausa if estado in ("pausa", "mapa") else tiempo
+            dibujar_fondo(tiempo_escena)
+            if estado not in ("pausa", "mapa"):
+                if len(jugadores) > 1:
+                    actualizar_camaras_multijugador(dt)
+                else:
+                    actualizar_camara_mapa(dt)
+            if len(jugadores) > 1:
+                dibujar_mapa_multijugador(tiempo_escena)
+            else:
+                dibujar_mapa_vista(tiempo_escena)
+            dibujar_cabecera()
+            mostrar_mision()
+            dibujar_tripulacion()
+            dibujar_alertas()
+            dibujar_flash()
+            if len(jugadores) > 1 and estado == "juego":
+                dibujar_formularios_multijugador()
+            if estado == "formulario" and formulario:
+                dibujar_formulario(mouse, dt)
+            elif estado == "minijuego" and minijuego:
+                dibujar_minijuego(mouse, dt)
+            elif estado == "pausa":
+                dibujar_pausa(mouse, tiempo)
+            elif estado == "mapa":
+                dibujar_mapa_general(tiempo_escena)
+                rect_alpha(pantalla, (17, 45, 70), boton_cerrar_mapa, 240, 10)
+                pygame.draw.rect(pantalla, (85, 134, 174), boton_cerrar_mapa, 1, border_radius=10)
+                texto("CERRAR  X", fuente_mini_b, BLANCO, boton_cerrar_mapa.center,
+                      centro=True, sombra=False)
+        elif estado == "final":
+            dibujar_resultado(tiempo, True)
+        elif estado == "fallo":
+            dibujar_resultado(tiempo, False)
+
+        if estado in ("menu", "final", "fallo"):
+            dibujar_particulas()
+        presentar_pantalla()
+
+    
 
 if __name__ == "__main__":
     main()
