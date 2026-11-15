@@ -253,10 +253,13 @@ salas = {
     "OBSERVATORIO": pygame.Rect(560, 150, 270, 140),
     "ESCLUSA AUXILIAR": pygame.Rect(1200, 150, 270, 140),
     "ANTENAS": pygame.Rect(1840, 150, 270, 140),
+    "CAMAROTES": pygame.Rect(865, 150, 270, 140),
+    "INVERNADERO": pygame.Rect(1485, 150, 270, 140),
     "ENFERMERIA": pygame.Rect(920, 510, 170, 130),
     "LABORATORIO": pygame.Rect(1560, 510, 170, 130),
     "CONTROL TERMICO": pygame.Rect(2200, 510, 180, 130),
     "COMEDOR": pygame.Rect(840, 1070, 270, 140),
+    "GIMNASIO": pygame.Rect(1185, 1070, 270, 140),
     "ALMACEN": pygame.Rect(1480, 1070, 270, 140),
     "TALLER": pygame.Rect(1920, 1070, 270, 140),
 }
@@ -268,6 +271,7 @@ NOMBRES_SALA = {
     "OBSERVATORIO": "OBSERVATORIO", "ESCLUSA AUXILIAR": "ESCLUSA AUXILIAR",
     "ANTENAS": "ANTENAS", "ENFERMERIA": "ENFERMERÍA", "LABORATORIO": "LABORATORIO",
     "CONTROL TERMICO": "CONTROL TÉRMICO", "COMEDOR": "COMEDOR",
+    "CAMAROTES": "CAMAROTES", "INVERNADERO": "INVERNADERO", "GIMNASIO": "GIMNASIO",
     "ALMACEN": "ALMACÉN", "TALLER": "TALLER",
 }
 
@@ -285,6 +289,9 @@ COLORES_SALA = {
     "LABORATORIO": (142, 220, 128),
     "CONTROL TERMICO": (255, 190, 91),
     "COMEDOR": (255, 150, 103),
+    "CAMAROTES": (177, 154, 230),
+    "INVERNADERO": (112, 220, 147),
+    "GIMNASIO": (255, 132, 91),
     "ALMACEN": (179, 157, 125),
     "TALLER": (134, 174, 196),
 }
@@ -318,11 +325,13 @@ CENTROS_MISION_INFERIORES = tuple(
 CENTROS_SERVICIO = tuple(salas[n].centerx for n in ("ENFERMERIA", "LABORATORIO", "CONTROL TERMICO"))
 PUERTAS_EXTRA = (
     [pygame.Rect(x - 34, 280, 68, 40) for x in (695, 1335, 1975)]
+    + [pygame.Rect(salas[n].centerx - 34, 280, 68, 40) for n in ("CAMAROTES", "INVERNADERO")]
     + [pygame.Rect(x - 34, 330, 68, 35) for x in CENTROS_MISION_SUPERIORES]
     + [pygame.Rect(x - 34, 570, 68, 95) for x in CENTROS_MISION_SUPERIORES]
     + [pygame.Rect(x - 34, 710, 68, 60) for x in CENTROS_MISION_INFERIORES]
     + [pygame.Rect(x - 34, 995, 68, 35) for x in CENTROS_MISION_INFERIORES]
     + [pygame.Rect(x - 34, 1050, 68, 40) for x in CENTROS_MISION_INFERIORES]
+    + [pygame.Rect(salas["GIMNASIO"].centerx - 34, 1050, 68, 40)]
     + [pygame.Rect(x - 34, 630, 68, 40) for x in CENTROS_SERVICIO]
 )
 ZONAS = list(salas.values()) + [PASILLO] + PASILLOS_EXTRA + PUERTAS + list(PUERTAS_EXTRA)
@@ -791,6 +800,179 @@ misiones = [
      ]},
 ]
 
+# Justificación factual o técnica de cada pregunta. Explica el error sin revelar
+# cuál de las opciones es la correcta.
+JUSTIFICACIONES = {
+    "En CML 2 la idea se cuestiona desde el punto de vista…":
+        "Evaluar la viabilidad desde un solo eje deja fuera dimensiones importantes que esta fase también considera.",
+    "¿Cómo se describen los objetivos científicos en CML 2?":
+        "Una frase es demasiado superficial y una matriz completa es propia de una fase más madura; aquí se pide un nivel intermedio de detalle.",
+    "Estimación de costo en CML 2:":
+        "La validación independiente y las reservas probabilísticas exceden el nivel preliminar; la estimación debe reflejar la incertidumbre temprana.",
+    "El trade space de CML 3 busca…":
+        "En esta etapa se comparan alternativas; elegir un diseño único o preparar su implementación son decisiones posteriores.",
+    "Ciencia en CML 3:":
+        "La pregunta trata de comparar el retorno científico con las restricciones de la misión, no solo de enumerar documentos o criterios.",
+    "Adquisiciones en CML 3:":
+        "Comparar capacidades de posibles proveedores sirve para evaluar arquitecturas; aprobar negocios o negociar contratos ocurre después.",
+    "Un punto de diseño (CML 4) es…":
+        "Un punto de diseño ya no es una idea general ni una exploración abierta: representa una alternativa definida con suficiente detalle.",
+    "Ciencia en CML 4:":
+        "La evaluación de ciencia en esta fase va más allá de una frase, pero aún no equivale a cerrar todos los requisitos de éxito.",
+    "Costo en CML 4:":
+        "Un rango basado solo en analogías es demasiado preliminar, mientras que una estimación probabilística completa corresponde a mayor madurez.",
+    "Diseño de la nave en CML 2:":
+        "En esta fase se identifican elementos y requisitos; los diagramas de diseño detallado y su evaluación externa vienen después.",
+    "En tecnología, CML 2 exige…":
+        "La pregunta se refiere a identificar qué tecnologías son críticas; entregar o actualizar planes de desarrollo es trabajo de fases posteriores.",
+    "Márgenes técnicos en CML 2:":
+        "CML 2 detecta dónde hay incertidumbre; gestionar los márgenes definidos o aplicar políticas institucionales supone más madurez.",
+    "Nave en CML 3:":
+        "Esta etapa compara arquitecturas y sensibilidad; dibujos de configuración o contingencias detalladas no responden a ese análisis.",
+    "Lista de equipos (MEL) en CML 3:":
+        "La pregunta apunta a una estimación preliminar de masas; una lista desglosada hasta cada ensamble o componente implica más detalle.",
+    "Herencia (inheritance) en CML 3:":
+        "Primero se estudia si reutilizar tecnología heredada conviene y qué riesgos trae; la disponibilidad y obsolescencia se verifican después.",
+    "Margen de masa seca y de potencia (CML 4):":
+        "Los márgenes propuestos deben ser realistas: uno muy bajo no protege contra incertidumbre y uno extremo no es el umbral de diseño esperado.",
+    "Margen del software de vuelo (CPU y memoria):":
+        "El margen de CPU y memoria se expresa como porcentaje; los decibelios no miden capacidad computacional y una reserva pequeña no basta.",
+    "Lista maestra de equipos (MEL) en CML 4:":
+        "En esta fase la lista debe permitir revisar equipos con un detalle mayor al de masas globales, pero sin llegar a cada componente.",
+    "Diseño de misión en CML 2:":
+        "La pregunta se refiere al análisis inicial de misión; un presupuesto completo o una matriz de trazabilidad cerrada son más avanzados.",
+    "Lanzamiento en CML 2:":
+        "La selección de un vehículo y el contacto con sus proveedores requieren más definición que identificar las necesidades de lanzamiento.",
+    "Cronograma en CML 2:":
+        "Un Gantt detallado o una red integrada con reservas corresponden a etapas posteriores a la estimación preliminar.",
+    "Misión en CML 3:":
+        "La tarea es contrastar alternativas completas; detallar una sola opción o definir maniobras no cubre esa comparación.",
+    "Entorno espacial en CML 3:":
+        "Sin cuantificar los peligros no se pueden comparar ni gestionar los riesgos de las arquitecturas candidatas.",
+    "Lanzamiento en CML 3:":
+        "Esta fase compara alternativas de lanzamiento; documentar un vehículo de respaldo es una decisión de diseño más madura.",
+    "Margen de telecomunicaciones (CML 4):":
+        "Los enlaces de espacio profundo y de proximidad tienen presupuestos distintos; no se intercambian sus criterios ni se expresan como masa.",
+    "Misión en CML 4 determina…":
+        "El diseño de misión establece necesidades de desempeño propulsivo; la fecha o el procedimiento operativo por sí solos no definen ese presupuesto.",
+    "Lanzamiento en CML 4:":
+        "A esta altura hace falta dejar una opción de lanzamiento preparada y una contingencia, no solo describir necesidades o iniciar contactos.",
+    "Riesgos técnicos en CML 2:":
+        "La fase inicial reconoce los riesgos; cuantificarlos en una matriz y cerrar un plan de gestión requiere mayor desarrollo.",
+    "Protección planetaria en CML 2:":
+        "Primero se determina si aplican requisitos; una carta de categorización o certificación presupone una evaluación posterior.",
+    "NEPA y seguridad en CML 2:":
+        "La pregunta es sobre detectar posibles asuntos ambientales y de seguridad, no completar trámites formales o reabrir requisitos ya establecidos.",
+    "Riesgos en CML 3:":
+        "No basta con listar preocupaciones ni repetir un plan base: hay que entender cómo cambian los riesgos entre alternativas.",
+    "Verificación y validación (V&V) en CML 3:":
+        "La fase identifica las pruebas que serán especiales; completar el plan y conectarlo al cronograma integrado va más allá.",
+    "Protección planetaria en CML 3:":
+        "En esta etapa todavía se comparan formas de cumplir la protección planetaria; cerrar una política o certificación es prematuro.",
+    "Un concepto está en cierto CML cuando…":
+        "La madurez se determina con una evaluación objetiva de atributos; no exige perfección total ni depende de la opinión del propio equipo.",
+    "Riesgos en CML 4:":
+        "En esta fase los riesgos deben estar analizados y vinculados a mitigaciones; una lista simple o una comparación temprana no basta.",
+    "La evaluación de madurez debe hacerla…":
+        "Una autoevaluación o una entrevista con una sola función no ofrece la independencia ni las perspectivas necesarias.",
+    "¿A qué hora de vuelo ocurrió el accidente?":
+        "Las horas de las otras opciones corresponden a hitos distintos; distingue el inicio de la emergencia de los eventos posteriores.",
+    "¿Quién era el Director de Vuelo cuando ocurrió el accidente?":
+        "Los otros nombres corresponden a directores de otros turnos; la pregunta se refiere al equipo que estaba de guardia en ese instante.",
+    "¿Quién era el Capcom (comunicador de la cápsula) en el momento del aviso?":
+        "Las otras personas también fueron Capcom, pero en otros turnos; importa quién atendía la consola durante ese intercambio.",
+    "¿Cuál fue la primera reacción de todos ante el problema?":
+        "Como todavía no se conocía la causa, las primeras acciones no podían basarse en una decisión de emergencia ya confirmada.",
+    "¿Qué marcaba el bus principal A de CC en lugar de los 27 voltios habituales?":
+        "No confundas la lectura del Bus A de corriente continua con la caída del Bus B ni con los niveles de otros circuitos.",
+    "¿Qué celdas de combustible parecían fuera de servicio?":
+        "La telemetría diferenciaba las celdas por número; la alternativa elegida incluye una unidad que no coincidía con las señales observadas.",
+    "¿Qué sensor oscilaba entre el 20 % y el 60 % tras el golpe?":
+        "La fluctuación era una lectura de cantidad de un tanque; presión y temperatura son medidas diferentes.",
+    "¿Qué mostraba el bus de corriente alterna 2?":
+        "La pregunta es sobre el bus de corriente alterna; no uses como referencia los voltajes nominales de corriente continua.",
+    "El LM abastecía a dos tripulantes durante dos días. ¿Qué tendría que hacer ahora?":
+        "La autonomía del LM debía cubrir a toda la tripulación y el trayecto extendido; las alternativas dejan corto el número de personas o la duración.",
+    "Apagar la celda de combustible 3 no detuvo la fuga porque el problema estaba en…":
+        "Desactivar una celda no podía detener una fuga situada aguas arriba en el suministro; motor y antena no forman parte de ese circuito.",
+    "¿Cuáles eran las dos fuentes de oxígeno del módulo de mando?":
+        "Las alternativas mezclan el sistema del módulo de mando con los depósitos del módulo de servicio o del LM.",
+    "Al ritmo del tanque 1, ¿cuánta generación de energía quedaba?":
+        "La generación dependía del oxígeno que alimentaba las celdas; las estimaciones más largas no reflejan el ritmo de consumo descrito.",
+    "¿Cuánta energía le quedaba a Odyssey?":
+        "Las opciones más largas sobrestiman la reserva disponible y no explican por qué fue necesario apagar la nave tan pronto.",
+    "¿Qué problema de comunicaciones surgió al encender el LM?":
+        "El problema apareció al coordinar señales de radio; no fue una pérdida física de antena ni un reinicio del ordenador.",
+    "¿Quién encendió el módulo lunar y avisó a Houston?":
+        "No confundas al tripulante que activó y reportó el estado del LM con el comandante o con el Capcom en Tierra.",
+    "¿Cuánto tardó Swigert en desactivar la nave Odyssey?":
+        "El apagado fue una secuencia deliberada de ahorro, no un corte casi instantáneo ni una tarea pospuesta por muchas horas.",
+    "¿Qué motor se usó para volver a la trayectoria de retorno libre?":
+        "El motor principal del módulo de mando no estaba disponible; los propulsores de control tampoco sustituían el motor de maniobra necesario.",
+    "¿Cuánto duró el encendido a las 61 h 30 min?":
+        "Ese encendido fue la corrección inicial de retorno libre; no lo confundas con PC+2 ni con el ajuste final de reentrada.",
+    "La maniobra elevó el paso más cercano por la cara oculta de la Luna de…":
+        "La pregunta compara la altitud del paso lunar antes y después de la corrección; las otras cifras mezclan una distancia distinta o el récord de alejamiento.",
+    "Sin más maniobras, ¿dónde habrían amerizado?":
+        "La trayectoria sin corregir no era la del amerizaje que finalmente preparó Houston; compara el rumbo y la hora estimada de llegada.",
+    "¿Cómo describió Kraft la situación?":
+        "Las opciones que la minimizan o la dan por controlada contradicen la gravedad reconocida públicamente por la NASA.",
+    "¿Quién relevó a Kranz al terminar su turno?":
+        "Los otros nombres corresponden a directores de otros relevos; ubica el cambio de turno inmediatamente posterior al de Kranz.",
+    "Según las reglas de vuelo, ¿qué impedía entrar en órbita lunar?":
+        "La restricción estaba ligada a la capacidad eléctrica redundante de la nave, no a la antena ni a un tanque de helio aislado.",
+    "¿Con qué accidente comparó McDivitt la crisis?":
+        "Los otros ejemplos no coinciden con la comparación de una emergencia orbital que exigió un regreso rápido.",
+    "¿Qué récord establecieron Lovell, Swigert y Haise?":
+        "El hito ocurrió al rodear la Luna y fue un récord de distancia, no de duración ni de un alunizaje.",
+    "¿A qué hora de vuelo entró el Apolo 13 en la sombra de la Luna?":
+        "Las otras horas señalan el accidente o una maniobra posterior; la pregunta trata del paso por la sombra lunar.",
+    "¿Qué registró el sismómetro del Apolo 12?":
+        "El registro sísmico se relacionó con un impacto sobre la Luna; no con un suceso dentro del LM ni con la pérdida de oxígeno.",
+    "¿Cuánto duró la pérdida de señal tras la Luna?":
+        "La interrupción fue el apagón de radio previsto al quedar la Luna entre la nave y la Tierra, no una avería de varias horas.",
+    "¿Qué significa PC+2?":
+        "La notación usa como referencia el paso más cercano a la Luna; no es el número de una corrección ni de un plan de contingencia.",
+    "¿Cuánto duró el encendido PC+2 del DPS?":
+        "PC+2 fue una maniobra prolongada distinta del encendido breve de retorno libre y de la corrección final.",
+    "¿Cuánto adelantó el regreso a la Tierra?":
+        "La corrección cambió apreciablemente el tiempo de retorno; las alternativas no concuerdan con la cronología de la misión.",
+    "Tras el PC+2, ¿qué se hizo con el módulo lunar?":
+        "El LM debía reservar sus baterías para las fases posteriores; desacoplarlo o usarlo para amerizar habría impedido ese plan.",
+    "¿Qué problema debía resolver el equipo de Ed Smylie?":
+        "El obstáculo era una incompatibilidad física entre los cartuchos disponibles y el alojamiento del depurador, no un problema de antena o baterías.",
+    "¿Qué se usó para el dispositivo improvisado?":
+        "La solución se armó con materiales flexibles disponibles en la nave; soldadura y cables no eran el adaptador descrito.",
+    "¿Dónde se probó el procedimiento antes de dárselo a la tripulación?":
+        "El equipo en Tierra verificó el flujo de aire bajo condiciones controladas antes de que la tripulación lo montara.",
+    "¿Qué compuesto depuraba el CO2 de la cabina?":
+        "Los cartuchos usaban un absorbente químico para retirar CO2; las otras sustancias no cumplen esa función en este sistema.",
+    "¿Cuántos interruptores y disyuntores había que configurar en Odyssey?":
+        "La cifra pertenece a una larga lista de pasos de reactivación; los valores alternativos no corresponden al conteo de esa lista.",
+    "¿Qué verificó Swigert, necesario para la reentrada?":
+        "La verificación era de distribución eléctrica esencial; encender el SPS o apuntar una antena no confirmaba que los circuitos estuvieran listos.",
+    "¿Qué batería del LM sufrió un cortocircuito?":
+        "No confundas las baterías de la etapa de descenso con las de ascenso o del módulo de mando; sus numeraciones son independientes.",
+    "Con todo apagado, ¿qué efecto secundario sufrió la tripulación?":
+        "El ahorro de energía redujo la calefacción disponible; las otras opciones describen fallos distintos que no fueron consecuencia de ese apagado.",
+    "¿Cuánto duró el encendido DPS a las 105 h 18 min?":
+        "Este fue el ajuste final de trayectoria, distinto tanto de la corrección de retorno libre como del encendido PC+2.",
+    "¿Cómo mantuvieron la actitud de la nave durante esa maniobra?":
+        "La computadora del LM estaba apagada para ahorrar recursos; por eso no podían depender de sus sistemas de guiado.",
+    "¿Para qué servía esa maniobra?":
+        "Era un ajuste de precisión para la llegada; no repetía la maniobra de retorno libre ni buscaba recortar muchas horas.",
+    "¿A qué distancia de la Tierra se encontraban?":
+        "La distancia cambia a lo largo del vuelo; las otras cifras corresponden a otros puntos de la trayectoria.",
+    "¿Qué es el PTC?":
+        "El PTC es una técnica pasiva de control térmico; no es un motor de trayectoria ni un equipo de comunicaciones.",
+    "¿Cada cuánto giraba la nave en modo PTC?":
+        "El PTC era una rotación lenta y continua; las opciones describen ritmos demasiado rápidos o demasiado espaciados.",
+    "Mientras Lovell y Swigert dormían unas cinco horas, ¿quién hacía guardia?":
+        "La guardia la cubría un tripulante que seguía en Aquarius; no el personal de Houston ni alguien en Odyssey.",
+    "Cuando quedaban unas 38 horas, ¿quién tomó la guardia a bordo?":
+        "La pregunta se refiere al relevo a bordo en ese momento; no confundas ese turno con la guardia anterior.",
+}
+
 # ESTADO DE PARTIDA
 
 # Variables globales del estado de juego, interfaz, temporizadores y puntuación.
@@ -972,10 +1154,11 @@ def crear_jugadores(total):
     alarmas_urgencia_multijugador.clear()
     # Al iniciar una partida, todos los medidores vuelven a sus valores iniciales.
     for k in recursos:
-
-        recursos[k] = 100.0        
         if k == "co2":
             recursos[k] = 0.0
+        else:
+            recursos[k] = 100.0        
+        
         recursos_vis[k] = 100.0
     mision_actual = 0
     formulario = None
@@ -1229,8 +1412,14 @@ def sortear_preguntas(idx):
         campos.append({"pregunta": pregunta, "opciones": ops, "correcta": ops.index(ok),
                        "tipo": "CML" if q in cml else "HISTORIA", "elegida": None,
                        "bloqueado": False, "error": False,
+                       "explicacion": JUSTIFICACIONES[pregunta],
                        "hv": [0.0] * len(ops), "sel": [0.0] * len(ops), "pulso": [9.9] * len(ops)})
     return campos
+
+
+def mensaje_error_campo(campo):
+    """Devuelve solo la explicación del error, sin mostrar la respuesta correcta."""
+    return f"Motivo: {campo['explicacion']}"
 
 
 def crear_formulario_mision(indice):
@@ -1519,6 +1708,16 @@ def dibujar_icono_sala(nombre, centro, color):
             pygame.draw.arc(pantalla, color, (cx - radio, cy - 9 - radio,
                                                radio * 2, radio * 2),
                             math.radians(220), math.radians(320), 2)
+    elif nombre == "CAMAROTES":
+        for dx in (-9, 9):
+            pygame.draw.rect(pantalla, color, (cx - 17, cy + dx - 5, 34, 10), 2, border_radius=3)
+            pygame.draw.line(pantalla, color, (cx - 13, cy + dx), (cx + 13, cy + dx), 1)
+        pygame.draw.circle(pantalla, color, (cx - 11, cy - 9), 2)
+    elif nombre == "INVERNADERO":
+        pygame.draw.line(pantalla, color, (cx, cy + 18), (cx, cy - 4), 2)
+        for dx, dy in ((-9, -9), (9, -14), (-10, 1), (10, -2)):
+            pygame.draw.ellipse(pantalla, color, (cx + dx - 5, cy + dy - 3, 10, 6), 1)
+        pygame.draw.line(pantalla, color, (cx - 16, cy + 19), (cx + 16, cy + 19), 2)
     elif nombre == "ENFERMERIA":
         pygame.draw.rect(pantalla, color, (cx - 7, cy - 20, 14, 40), border_radius=3)
         pygame.draw.rect(pantalla, color, (cx - 20, cy - 7, 40, 14), border_radius=3)
@@ -1547,6 +1746,11 @@ def dibujar_icono_sala(nombre, centro, color):
             a = math.radians(angulo)
             pygame.draw.line(pantalla, color, (cx + int(math.cos(a) * 17), cy + int(math.sin(a) * 17)),
                              (cx + int(math.cos(a) * 23), cy + int(math.sin(a) * 23)), 3)
+    elif nombre == "GIMNASIO":
+        pygame.draw.line(pantalla, color, (cx - 17, cy), (cx + 17, cy), 3)
+        for dx in (-17, 17):
+            pygame.draw.line(pantalla, color, (cx + dx, cy - 7), (cx + dx, cy + 7), 3)
+        pygame.draw.line(pantalla, color, (cx - 10, cy + 12), (cx + 10, cy + 12), 2)
     else:
         pygame.draw.circle(pantalla, color, (cx, cy), 5, 2)
         for radio in (12, 19):
@@ -1613,6 +1817,14 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
         for radio in (7, 13, 19):
             pygame.draw.arc(pantalla, color, (cx - radio, cy - radio, radio * 2, radio * 2),
                             math.radians(220), math.radians(320), 1)
+    elif nombre == "CAMAROTES":
+        for dx in (-12, 12):
+            pygame.draw.rect(pantalla, color, (cx + dx - 5, cy - 5, 10, 10), 1, border_radius=2)
+            pygame.draw.line(pantalla, color, (cx + dx - 3, cy), (cx + dx + 3, cy), 1)
+    elif nombre == "INVERNADERO":
+        pygame.draw.line(pantalla, color, (cx, visor.bottom - 3), (cx, visor.y + 4), 1)
+        pygame.draw.circle(pantalla, color, (cx - 7, cy - 2), 3, 1)
+        pygame.draw.circle(pantalla, color, (cx + 7, cy + 2), 3, 1)
     elif nombre == "ENFERMERIA":
         puntos = [(visor.x + 4, cy), (visor.x + 13, cy), (visor.x + 18, cy - 6),
                   (visor.x + 24, cy + 6), (visor.x + 29, cy), (visor.right - 4, cy)]
@@ -1645,6 +1857,10 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
         pygame.draw.circle(pantalla, color, (cx, cy), 7, 1)
         pygame.draw.circle(pantalla, color, (cx, cy), 3, 1)
         pygame.draw.line(pantalla, color, (cx + 6, cy + 5), (cx + 17, cy + 9), 2)
+    elif nombre == "GIMNASIO":
+        puntos = [(visor.x + 5, cy + 3), (visor.x + 13, cy + 3), (visor.x + 19, cy - 5),
+                  (visor.x + 25, cy + 5), (visor.x + 32, cy - 3), (visor.right - 5, cy - 3)]
+        pygame.draw.lines(pantalla, color, False, puntos, 1)
     elif nombre == "TELEMETRIA":
         puntos = [(visor.x + 5, cy + 2), (visor.x + 14, cy + 2), (visor.x + 19, cy - 5),
                   (visor.x + 25, cy + 5), (visor.x + 33, cy - 3), (visor.right - 5, cy - 3)]
@@ -1662,6 +1878,65 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
                            centro_luz, 3 if encendida else 2)
         if encendida:
             pygame.draw.circle(pantalla, luz, centro_luz, 4, 1)
+
+
+def dibujar_detalles_sala(nombre, sala, color, tiempo):
+    """Añade iluminación, paneles y mobiliario temático a las salas."""
+    interior = sala.inflate(-10, -10)
+    pygame.draw.rect(pantalla, mezclar((17, 32, 52), color, 0.18), interior, 1, border_radius=8)
+    for indice, x in enumerate(range(sala.x + 22, sala.right - 24, 72)):
+        brillo = 0.35 + 0.65 * (0.5 + 0.5 * math.sin(tiempo * 2.5 + indice))
+        tono = mezclar((35, 54, 72), color, brillo)
+        pygame.draw.rect(pantalla, tono, (x, sala.y + 5, 28, 3), border_radius=2)
+    suelo_y = sala.bottom - 11
+    pygame.draw.line(pantalla, (37, 56, 73), (sala.x + 12, suelo_y),
+                     (sala.right - 12, suelo_y), 1)
+    for x in range(sala.x + 24, sala.right - 20, 38):
+        pygame.draw.line(pantalla, (30, 48, 65), (x, suelo_y - 4), (x, sala.bottom - 5), 1)
+
+    if nombre == "CAMAROTES":
+        for dx in (66, 154):
+            litera = pygame.Rect(sala.x + dx, sala.y + 58, 72, 30)
+            pygame.draw.rect(pantalla, (20, 39, 57), litera, border_radius=5)
+            pygame.draw.rect(pantalla, mezclar((32, 51, 69), color, 0.38), litera, 1, border_radius=5)
+            pygame.draw.rect(pantalla, (118, 148, 171), (litera.x + 5, litera.y + 5, 14, 8),
+                             border_radius=3)
+            pygame.draw.line(pantalla, color, (litera.x + 23, litera.y + 10),
+                             (litera.right - 5, litera.y + 10), 1)
+            pygame.draw.line(pantalla, (66, 90, 110), (litera.x + 5, litera.y + 23),
+                             (litera.right - 5, litera.y + 23), 1)
+        pygame.draw.rect(pantalla, (25, 43, 61), (sala.x + 72, sala.y + 103, 56, 12), border_radius=3)
+        pygame.draw.rect(pantalla, color, (sala.x + 72, sala.y + 103, 56, 12), 1, border_radius=3)
+    elif nombre == "INVERNADERO":
+        for indice, x in enumerate((sala.x + 48, sala.x + 100, sala.x + 152)):
+            jardinera = pygame.Rect(x, sala.y + 91, 42, 16)
+            pygame.draw.rect(pantalla, (30, 56, 50), jardinera, border_radius=3)
+            pygame.draw.rect(pantalla, color, jardinera, 1, border_radius=3)
+            for planta in range(3):
+                px = x + 8 + planta * 13
+                altura = 20 + (planta + indice) % 2 * 5
+                pygame.draw.line(pantalla, (89, 175, 111), (px, jardinera.y),
+                                 (px, jardinera.y - altura), 2)
+                pygame.draw.ellipse(pantalla, (105, 205, 132), (px - 7, jardinera.y - altura + 4, 8, 4))
+                pygame.draw.ellipse(pantalla, (76, 163, 109), (px, jardinera.y - altura + 9, 8, 4))
+        pygame.draw.line(pantalla, (67, 111, 92), (sala.x + 83, sala.y + 58),
+                         (sala.right - 82, sala.y + 58), 2)
+        for x in (sala.x + 105, sala.x + 165):
+            pygame.draw.line(pantalla, color, (x, sala.y + 54), (x, sala.y + 64), 1)
+    elif nombre == "GIMNASIO":
+        cinta = pygame.Rect(sala.x + 68, sala.y + 83, 106, 10)
+        pygame.draw.rect(pantalla, (20, 34, 48), cinta, border_radius=5)
+        pygame.draw.rect(pantalla, color, cinta, 1, border_radius=5)
+        pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 10, cinta.y + 4),
+                         (cinta.right - 10, cinta.y + 4), 1)
+        pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 14, cinta.y),
+                         (cinta.x + 27, cinta.y - 22), 2)
+        pygame.draw.line(pantalla, (110, 132, 149), (cinta.x + 27, cinta.y - 22),
+                         (cinta.x + 49, cinta.y - 22), 2)
+        pygame.draw.line(pantalla, color, (sala.x + 202, sala.y + 74),
+                         (sala.x + 244, sala.y + 74), 3)
+        for x in (sala.x + 202, sala.x + 244):
+            pygame.draw.line(pantalla, color, (x, sala.y + 67), (x, sala.y + 81), 3)
 
 
 def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
@@ -1817,6 +2092,7 @@ def dibujar_nave(tiempo):
         responsable_sala = next((j for j in jugadores_sala if en_sector(j)),
                                 jugadores_sala[0] if jugadores_sala else None)
         pygame.draw.rect(pantalla, (17, 32, 52), sala, border_radius=12)
+        dibujar_detalles_sala(nombre, sala, color, tiempo)
         dibujar_equipo_sala(nombre, sala, color, tiempo)
         if sala.width >= 400:
             texto("CONSOLA AUXILIAR", fuente_mini, APAGADO,
@@ -1996,16 +2272,27 @@ def dibujar_formularios_multijugador():
 
         texto(f"MISIÓN {f['idx'] + 1:02d}/{len(misiones):02d} · {m['titulo']}",
               fuente_mini_b, color_sala, (panel.x + 10, panel.y + 7), sombra=False)
-        if f["mensaje"]:
+        errores = [(i, campo) for i, campo in enumerate(f["campos"]) if campo["error"]]
+        if errores:
+            ayuda = "  ·  ".join(
+                f"{i + 1}. {mensaje_error_campo(campo)}" for i, campo in errores
+            )
+            if f["mensaje"]:
+                ayuda += f"  ·  {f['mensaje']}"
+            color_ayuda = ROJO_CLARO
+        elif f["mensaje"]:
             ayuda = f["mensaje"]
             color_ayuda = f["color"]
         else:
             ayuda = (f"↑↓ pregunta · ←→ respuesta · {TECLAS_ACEPTAR_TEXTO[indice]} confirmar"
                      f" · {TECLAS_CERRAR_TEXTO[indice]} cerrar")
             color_ayuda = APAGADO
-        texto(ayuda, fuente_micro, color_ayuda, (panel.x + 10, panel.y + 25), sombra=False)
+        lineas_ayuda = partir_texto(ayuda, fuente_micro, panel.width - 20)
+        for linea_i, linea in enumerate(lineas_ayuda):
+            texto(linea, fuente_micro, color_ayuda,
+                  (panel.x + 10, panel.y + 25 + linea_i * 12), sombra=False)
 
-        inicio_filas = panel.y + 44
+        inicio_filas = panel.y + 25 + len(lineas_ayuda) * 12 + 7
         alto_fila = max(1, (panel.bottom - 7 - inicio_filas) // len(f["campos"]))
         for campo_i, campo in enumerate(f["campos"]):
             fila = pygame.Rect(panel.x + 8, inicio_filas + campo_i * alto_fila,
@@ -2090,7 +2377,8 @@ def dibujar_mapa_general(tiempo):
         "COMUNICACIONES": "COMUNIC.", "SOPORTE VITAL": "SOPORTE", "TELEMETRIA": "TELEMET.",
         "OBSERVATORIO": "OBSERVAT.", "ESCLUSA AUXILIAR": "ESCLUSA", "ANTENAS": "ANTENAS",
         "ENFERMERIA": "ENFERM.", "LABORATORIO": "LAB.", "CONTROL TERMICO": "TÉRMICO",
-        "COMEDOR": "COMEDOR", "ALMACEN": "ALMACÉN", "TALLER": "TALLER",
+        "COMEDOR": "COMEDOR", "CAMAROTES": "CAMAROT.", "INVERNADERO": "INVERN.",
+        "GIMNASIO": "GIMNASIO", "ALMACEN": "ALMACÉN", "TALLER": "TALLER",
     }
     for nombre, sala in salas.items():
         centro = posicion_mapa(*sala.center)
@@ -2133,7 +2421,11 @@ def dibujar_recursos():
         # Los medidores por debajo del 25 % parpadean en rojo para señalar peligro.
         if v < 25:
             c = ROJO_CLARO if int(tiempo_juego * 4) % 2 == 0 else ROJO
-        texto("CO2" if k == "co2" else nombre, fuente_mini, SUAVE if v >= 25 else c, (x, 24), sombra=False)
+            if k== "co2":
+                texto("CO2", fuente_mini, SUAVE if v <= 75 else c, (x, 24), sombra=False)
+            else:
+                texto(nombre, fuente_mini, SUAVE if v >= 25 else c, (x, 24), sombra=False)
+
         texto(f"{int(v)}%", fuente_mini_b, c, (x + 125, 24), derecha=True, sombra=False)
         pygame.draw.rect(pantalla, (20, 34, 54), (x, 52, 125, 5), border_radius=2)
         pygame.draw.rect(pantalla, c, (x, 52, max(0, int(125 * v / 100)), 5), border_radius=2)
@@ -2398,15 +2690,29 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
 
     # ---------- zona de preguntas ----------
     x0, ancho = 258, PW - 258 - 30
-    chars = int(max(0.0, t - 0.15) * 55)
-    texto(m["titulo"][:chars], fuente_mediana, BLANCO, (x0, 58), sombra=False)
-    relato = partir_texto(m["relato"], fuente_o, ancho)
-    gastados = int(max(0.0, t - 0.4) * 150)
-    for i, linea in enumerate(relato[:2]):
-        texto(linea[:gastados], fuente_o, SUAVE, (x0, 98 + i * 20), sombra=False)
-        gastados = max(0, gastados - len(linea))
-
     y_ini = 148
+    errores = [(i, campo) for i, campo in enumerate(campos) if campo["error"]]
+    if errores:
+        texto("REVISA TUS RESPUESTAS", fuente_mini_b, ROJO_CLARO, (x0, 56), sombra=False)
+        y_feedback = 73
+        for campo_i, campo in errores:
+            lineas = partir_texto(
+                f"{campo_i + 1}. {mensaje_error_campo(campo)}", fuente_micro, ancho
+            )
+            for linea in lineas:
+                texto(linea, fuente_micro, SUAVE, (x0, y_feedback), sombra=False)
+                y_feedback += 11
+            y_feedback += 2
+        y_ini = max(y_ini, y_feedback + 4)
+    else:
+        chars = int(max(0.0, t - 0.15) * 55)
+        texto(m["titulo"][:chars], fuente_mediana, BLANCO, (x0, 58), sombra=False)
+        relato = partir_texto(m["relato"], fuente_o, ancho)
+        gastados = int(max(0.0, t - 0.4) * 150)
+        for i, linea in enumerate(relato[:2]):
+            texto(linea[:gastados], fuente_o, SUAVE, (x0, 98 + i * 20), sombra=False)
+            gastados = max(0, gastados - len(linea))
+
     disponible = PH - 74 - y_ini
     pad, gap = 11, 12
     if _alto_campos(campos, ancho, pad, gap) > disponible:
