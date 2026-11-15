@@ -113,12 +113,16 @@ capa_mapa = pygame.Surface((MUNDO_ANCHO, MUNDO_ALTO), pygame.SRCALPHA)
 capa_mapa_zoom = pygame.Surface((round(ANCHO_RECORTE * ZOOM_MAPA),
                                  round(ALTO_RECORTE * ZOOM_MAPA)), pygame.SRCALPHA)
 camara_mapa = [MAPA.left * ZOOM_MAPA, MAPA.top * ZOOM_MAPA]
+camara_multijugador = []
+capas_mapa_zoom = {}
+AREA_VISTA_MULTIJUGADOR = pygame.Rect(0, 128, ANCHO, ALTO - 164)
 boton_cerrar_mapa = pygame.Rect(1070, 46, 156, 34)
 
 fuente = pygame.font.SysFont("arial", 19)
 fuente_q = pygame.font.SysFont("arial", 18)
 fuente_o = pygame.font.SysFont("arial", 16)
 fuente_mini = pygame.font.SysFont("arial", 14)
+fuente_micro = pygame.font.SysFont("arial", 12)
 fuente_mini_b = pygame.font.SysFont("arial", 14, True)
 fuente_mediana = pygame.font.SysFont("arial", 26, True)
 fuente_grande = pygame.font.SysFont("arial", 34, True)
@@ -264,6 +268,22 @@ PASILLOS_EXTRA = [
     pygame.Rect(390, 300, 1800, 50),
     pygame.Rect(650, 1020, 1700, 50),
 ]
+MUROS_LABERINTO = [
+    pygame.Rect(504, 304, 16, 16),
+    pygame.Rect(1014, 330, 16, 16),
+    pygame.Rect(1664, 304, 16, 16),
+    pygame.Rect(2134, 330, 16, 16),
+    pygame.Rect(444, 661, 18, 32),
+    pygame.Rect(814, 687, 18, 32),
+    pygame.Rect(1170, 661, 18, 32),
+    pygame.Rect(1510, 687, 18, 32),
+    pygame.Rect(1850, 661, 18, 32),
+    pygame.Rect(2200, 687, 18, 32),
+    pygame.Rect(804, 1024, 16, 16),
+    pygame.Rect(1264, 1050, 16, 16),
+    pygame.Rect(1864, 1024, 16, 16),
+    pygame.Rect(2234, 1050, 16, 16),
+]
 PUERTAS = []
 CENTROS_MISION_SUPERIORES = tuple(salas[n].centerx for n in ("ENERGIA", "OXIGENO", "NAVEGACION"))
 CENTROS_MISION_INFERIORES = tuple(
@@ -288,7 +308,8 @@ def punto_caminable(px, py):
 
 
 def hitbox_valida(caja):
-    return (punto_caminable(caja.left, caja.top)
+    return (not any(muro.colliderect(caja) for muro in MUROS_LABERINTO)
+            and punto_caminable(caja.left, caja.top)
             and punto_caminable(caja.right - 1, caja.top)
             and punto_caminable(caja.left, caja.bottom - 1)
             and punto_caminable(caja.right - 1, caja.bottom - 1))
@@ -754,6 +775,10 @@ proximo_evento = 30.0
 t_mision = 0.0
 met_vis = misiones[0]["met"]
 alertas = []
+misiones_completadas = set()
+formularios_multijugador = {}
+temporizadores_multijugador = {}
+alarmas_urgencia_multijugador = set()
 
 EVENTOS = [
     ("Cortocircuito en la batería 2 de la etapa de descenso", "energia", 7),
@@ -771,6 +796,10 @@ controles = [
     [pygame.K_t, pygame.K_g, pygame.K_f, pygame.K_h],
 ]
 TECLAS_TEXTO = ["WASD", "FLECHAS", "IJKL", "TFGH"]
+TECLAS_ACEPTAR = [pygame.K_e, pygame.K_RETURN, pygame.K_u, pygame.K_y]
+TECLAS_ACEPTAR_TEXTO = ["E", "ENTER", "U", "Y"]
+TECLAS_CERRAR_FORMULARIO = [pygame.K_q, pygame.K_RSHIFT, pygame.K_o, pygame.K_p]
+TECLAS_CERRAR_TEXTO = ["Q", "SHIFT DER.", "O", "P"]
 
 botones_menu = [pygame.Rect(72 + (i % 2) * 274, 348 + (i // 2) * 112, 256, 96) for i in range(4)]
 botones_pausa = [pygame.Rect(388, 460, 504, 54), pygame.Rect(388, 528, 504, 48)]
@@ -878,9 +907,14 @@ def crear_jugadores(total):
     global mision_actual, asignacion, formulario, t_mision, met_vis, proximo_evento, tiempo_juego
     global puntuacion, alarma_urgencia, puesto_puntuacion
     jugadores.clear()
+    camara_multijugador.clear()
     alertas.clear()
     particulas.clear()
     cache_forms.clear()
+    misiones_completadas.clear()
+    formularios_multijugador.clear()
+    temporizadores_multijugador.clear()
+    alarmas_urgencia_multijugador.clear()
     for k in recursos:
         recursos[k] = 100.0
         recursos_vis[k] = 100.0
@@ -898,7 +932,14 @@ def crear_jugadores(total):
     for i in range(total):
         x, y = posiciones[i]
         jugadores.append(Jugador(x, y, colores[i], roles[i]))
+        temporizadores_multijugador[roles[i]] = 0.0
     camara_mapa[:] = _posicion_camara(responsable_actual() or jugadores[0])
+    if total > 1:
+        zoom = zoom_multijugador(total)
+        camara_multijugador.extend(
+            list(_posicion_camara(jugador, vista, zoom))
+            for jugador, vista in zip(jugadores, vistas_multijugador())
+        )
     lanzar_alerta("Control de Misión: mantengamos la calma", AMARILLO, 4.0)
 
 
@@ -907,18 +948,54 @@ def cml_actual():
 
 
 def responsable_actual():
-    if mision_actual >= len(misiones):
+    indice = next((i for i in range(len(misiones)) if i not in misiones_completadas), None)
+    return next((j for j in jugadores if indice is not None and j.nombre == asignacion[indice]), None)
+
+
+def mision_para_jugador(jugador):
+    if jugador is None:
         return None
-    return next((j for j in jugadores if j.nombre == asignacion[mision_actual]), None)
+    return next((i for i, responsable in enumerate(asignacion)
+                 if responsable == jugador.nombre and i not in misiones_completadas), None)
 
 
-def _posicion_camara(jugador):
-    x_min = MAPA.left * ZOOM_MAPA
-    x_max = MAPA.right * ZOOM_MAPA - MAPA_VISTA.width
-    y_min = MAPA.top * ZOOM_MAPA
-    y_max = MAPA.bottom * ZOOM_MAPA - MAPA_VISTA.height
-    x = jugador.rect.centerx * ZOOM_MAPA - MAPA_VISTA.width / 2
-    y = jugador.rect.centery * ZOOM_MAPA - MAPA_VISTA.height / 2
+def actualizar_progreso_misiones():
+    global mision_actual, met_vis
+    mision_actual = len(misiones_completadas)
+    siguiente = next((i for i in range(len(misiones)) if i not in misiones_completadas), None)
+    met_vis = misiones[siguiente]["met"] if siguiente is not None else misiones[-1]["met"]
+
+
+def vistas_multijugador():
+    total = len(jugadores)
+    area = AREA_VISTA_MULTIJUGADOR
+    if total == 2:
+        ancho = area.width // 2
+        return [pygame.Rect(area.x, area.y, ancho, area.height),
+                pygame.Rect(area.x + ancho, area.y, area.width - ancho, area.height)]
+    if total == 3:
+        ancho = area.width // 3
+        return [pygame.Rect(area.x + i * ancho, area.y,
+                            ancho if i < 2 else area.width - ancho * 2, area.height)
+                for i in range(total)]
+    ancho, alto = area.width // 2, area.height // 2
+    return [pygame.Rect(area.x + (i % 2) * ancho, area.y + (i // 2) * alto,
+                        ancho if i % 2 == 0 else area.width - ancho,
+                        alto if i < 2 else area.height - alto)
+            for i in range(total)]
+
+
+def zoom_multijugador(total):
+    return {2: 1.1, 3: 0.85}.get(total, 0.95)
+
+
+def _posicion_camara(jugador, vista=MAPA_VISTA, zoom=ZOOM_MAPA):
+    x_min = MAPA.left * zoom
+    x_max = MAPA.right * zoom - vista.width
+    y_min = MAPA.top * zoom
+    y_max = MAPA.bottom * zoom - vista.height
+    x = jugador.rect.centerx * zoom - vista.width / 2
+    y = jugador.rect.centery * zoom - vista.height / 2
     return max(x_min, min(x_max, x)), max(y_min, min(y_max, y))
 
 
@@ -932,11 +1009,48 @@ def actualizar_camara_mapa(dt):
     camara_mapa[1] += (y - camara_mapa[1]) * suavizado
 
 
-def en_sector():
-    j = responsable_actual()
-    if not j:
+def actualizar_camaras_multijugador(dt):
+    global camara_multijugador
+    vistas = vistas_multijugador()
+    zoom = zoom_multijugador(len(jugadores))
+    if len(camara_multijugador) != len(jugadores):
+        camara_multijugador = [list(_posicion_camara(jugador, vista, zoom))
+                               for jugador, vista in zip(jugadores, vistas)]
+        return
+    suavizado = min(1.0, dt * 5)
+    for i, (jugador, vista) in enumerate(zip(jugadores, vistas)):
+        x, y = _posicion_camara(jugador, vista, zoom)
+        camara_multijugador[i][0] += (x - camara_multijugador[i][0]) * suavizado
+        camara_multijugador[i][1] += (y - camara_multijugador[i][1]) * suavizado
+
+
+def en_sector(jugador=None):
+    if jugador is None:
+        jugador = responsable_actual()
+    indice = mision_para_jugador(jugador)
+    if jugador is None or indice is None:
         return False
-    return salas[misiones[mision_actual]["sala"]].collidepoint(j.pies())
+    return salas[misiones[indice]["sala"]].collidepoint(jugador.pies())
+
+
+def consolas_auxiliares(sala):
+    return [pygame.Rect(sala.x + 76 + modulo * 72, sala.y + 75, 56, 42)
+            for modulo in range(4)]
+
+
+def en_consola_mision(jugador=None):
+    if jugador is None:
+        jugador = responsable_actual()
+    indice = mision_para_jugador(jugador)
+    if jugador is None or indice is None:
+        return False
+    sala = salas[misiones[indice]["sala"]]
+    if sala.width >= 400:
+        zonas = [consola.inflate(16, 18) for consola in consolas_auxiliares(sala)]
+    else:
+        consola = pygame.Rect(sala.x + 14, sala.y + 54, 38, 31)
+        zonas = [consola.inflate(16, 18)]
+    return any(zona.collidepoint(jugador.pies()) for zona in zonas)
 
 
 # ====================
@@ -971,11 +1085,28 @@ def actualizar_recursos(dt):
     global estado, formulario, proximo_evento, t_mision, met_vis, tiempo_juego, causa_fallo
     global alarma_urgencia, puesto_puntuacion
     tiempo_juego += dt
-    t_mision += dt
-    if not alarma_urgencia and t_mision >= OBJETIVO_URGENCIA:
-        alarma_urgencia = True
-        lanzar_alerta("ALERTA: venció la ventana de respuesta. Se perdió el bono de rapidez.",
-                      ROJO_CLARO, 6.0)
+    if len(jugadores) > 1:
+        for jugador in jugadores:
+            if mision_para_jugador(jugador) is None:
+                continue
+            formulario_jugador = formularios_multijugador.get(jugador.nombre)
+            if formulario_jugador and formulario_jugador["exito"] is not None:
+                continue
+            temporizadores_multijugador[jugador.nombre] += dt
+            if (temporizadores_multijugador[jugador.nombre] >= OBJETIVO_URGENCIA
+                    and jugador.nombre not in alarmas_urgencia_multijugador):
+                alarmas_urgencia_multijugador.add(jugador.nombre)
+                lanzar_alerta(
+                    f"{jugador.nombre}: venció la ventana de respuesta; perdió el bono de rapidez.",
+                    ROJO_CLARO, 6.0
+                )
+    else:
+        if not formulario or formulario["exito"] is None:
+            t_mision += dt
+        if not alarma_urgencia and t_mision >= OBJETIVO_URGENCIA:
+            alarma_urgencia = True
+            lanzar_alerta("ALERTA: venció la ventana de respuesta. Se perdió el bono de rapidez.",
+                          ROJO_CLARO, 6.0)
     for k in recursos:
         recursos[k] = max(0.0, recursos[k] - DRENAJE[k] * dt)
         recursos_vis[k] += (recursos[k] - recursos_vis[k]) * min(1.0, dt * 6)
@@ -987,6 +1118,7 @@ def actualizar_recursos(dt):
     if agotado:
         causa_fallo = agotado
         formulario = None
+        formularios_multijugador.clear()
         estado = "fallo"
         puesto_puntuacion = registrar_puntuacion(False)
 
@@ -1021,19 +1153,35 @@ def sortear_preguntas(idx):
     return campos
 
 
-def abrir_formulario():
-    global formulario, estado
-    if mision_actual not in cache_forms:
-        cache_forms[mision_actual] = sortear_preguntas(mision_actual)
-    formulario = {"idx": mision_actual, "campos": cache_forms[mision_actual], "foco": 0, "mensaje": "",
-                  "color": SUAVE, "zonas": [], "btn_enviar": None, "btn_cerrar": None, "t": 0.0,
-                  "shake": 0.0, "exito": None, "origen": (PX, PY),
-                  "lienzo": pygame.Surface((PW, PH), pygame.SRCALPHA)}
-    for c in formulario["campos"]:
+def crear_formulario_mision(indice):
+    if indice not in cache_forms:
+        cache_forms[indice] = sortear_preguntas(indice)
+    nuevo = {"idx": indice, "campos": cache_forms[indice], "foco": 0, "mensaje": "",
+             "color": SUAVE, "zonas": [], "btn_enviar": None, "btn_cerrar": None, "t": 0.0,
+             "shake": 0.0, "exito": None, "origen": (PX, PY),
+             "lienzo": pygame.Surface((PW, PH), pygame.SRCALPHA)}
+    for c in nuevo["campos"]:
         if not c["bloqueado"]:
             c["error"] = False
+    return nuevo
+
+
+def abrir_formulario():
+    global formulario, estado
+    if not en_consola_mision():
+        return
+    formulario = crear_formulario_mision(mision_actual)
     pygame.mouse.set_visible(True)
     estado = "formulario"
+
+
+def abrir_formulario_multijugador(jugador):
+    if jugador.nombre in formularios_multijugador:
+        return
+    indice = mision_para_jugador(jugador)
+    if indice is None or not en_consola_mision(jugador):
+        return
+    formularios_multijugador[jugador.nombre] = crear_formulario_mision(indice)
 
 
 def cerrar_formulario():
@@ -1042,20 +1190,21 @@ def cerrar_formulario():
     estado = "juego"
 
 
-def elegir(campo, opcion, avanzar=False):
-    c = formulario["campos"][campo]
+def elegir(campo, opcion, avanzar=False, f=None):
+    f = formulario if f is None else f
+    c = f["campos"][campo]
     if c["bloqueado"] or opcion >= len(c["opciones"]):
         return
     c["elegida"] = opcion
     c["error"] = False
     c["pulso"][opcion] = 0.0
-    formulario["mensaje"] = ""
-    formulario["foco"] = min(campo + 1, len(formulario["campos"]) - 1) if avanzar else campo
+    f["mensaje"] = ""
+    f["foco"] = min(campo + 1, len(f["campos"]) - 1) if avanzar else campo
 
 
-def enviar_formulario():
+def enviar_formulario(f=None, jugador=None):
     global sacudida
-    f = formulario
+    f = formulario if f is None else f
     campos = f["campos"]
     if any(c["elegida"] is None for c in campos):
         f["mensaje"] = "Completa todos los campos antes de enviar."
@@ -1084,7 +1233,7 @@ def enviar_formulario():
         sacudida = 0.25
         return
     f["exito"] = 0.0
-    j = responsable_actual()
+    j = responsable_actual() if jugador is None else jugador
     x, y = (j.rect.centerx, j.rect.centery - 8) if j else (ANCHO // 2, ALTO // 2 - 40)
     for col in (VERDE, AMARILLO, BLANCO, COLORES_SALA[m["sala"]]):
         emitir(x, y, col, 22, 330, 1.3, 3, 260)
@@ -1103,7 +1252,8 @@ def finalizar_exito():
     lanzar_alerta(f"Misión completada   +{int(RECUPERA)} % {RECURSOS_INFO[rec][0].lower()}   "
                   f"+{fmt_puntos(puntos_ganados)} pts", VERDE, 4.0)
     emitir(sala.centerx, sala.centery, COLORES_SALA[m["sala"]], 46, 280, 1.2, 3)
-    mision_actual += 1
+    misiones_completadas.add(mision_actual)
+    actualizar_progreso_misiones()
     t_mision = 0.0
     alarma_urgencia = False
     if mision_actual < len(misiones):
@@ -1120,12 +1270,87 @@ def finalizar_exito():
         lanzar_alerta(f"El concepto alcanzó CML {cml_actual()}: {NOMBRES_CML[cml_actual()]}", AZUL, 5.0)
 
 
+def finalizar_exito_multijugador(nombre_jugador):
+    global estado, puntuacion, puesto_puntuacion
+    f = formularios_multijugador.pop(nombre_jugador, None)
+    if f is None:
+        return
+    indice = f["idx"]
+    m = misiones[indice]
+    sala = salas[m["sala"]]
+    rec = m["recurso"]
+    recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
+    duracion = temporizadores_multijugador[nombre_jugador]
+    bono = max(0, int((OBJETIVO_URGENCIA - duracion) * PUNTOS_BONO_SEGUNDO))
+    puntos_ganados = PUNTOS_BASE_MISION + bono
+    puntuacion += puntos_ganados
+    misiones_completadas.add(indice)
+    actualizar_progreso_misiones()
+    temporizadores_multijugador[nombre_jugador] = 0.0
+    alarmas_urgencia_multijugador.discard(nombre_jugador)
+    lanzar_alerta(f"{nombre_jugador}: misión completada   +{fmt_puntos(puntos_ganados)} pts",
+                  VERDE, 4.0)
+    emitir(sala.centerx, sala.centery, COLORES_SALA[m["sala"]], 46, 280, 1.2, 3)
+    if mision_actual >= len(misiones):
+        estado = "final"
+        puesto_puntuacion = registrar_puntuacion(True)
+        for color in (VERDE, AMARILLO, AZUL, BLANCO):
+            emitir(ANCHO // 2, 300, color, 40, 420, 1.8, 3, 200)
+        return
+    if mision_actual % 4 == 0:
+        lanzar_alerta(f"El concepto alcanzó CML {cml_actual()}: {NOMBRES_CML[cml_actual()]}",
+                      AZUL, 5.0)
+
+
 def actualizar_formulario(dt):
     f = formulario
     if f and f["exito"] is not None:
         f["exito"] += dt
         if f["exito"] >= 1.9:
             finalizar_exito()
+
+
+def actualizar_formularios_multijugador(dt):
+    for nombre, f in list(formularios_multijugador.items()):
+        if f["exito"] is not None:
+            f["exito"] += dt
+            if f["exito"] >= 1.9:
+                finalizar_exito_multijugador(nombre)
+
+
+def manejar_tecla_multijugador(tecla):
+    for indice, jugador in enumerate(jugadores):
+        f = formularios_multijugador.get(jugador.nombre)
+        if f:
+            if f["exito"] is not None:
+                continue
+            if tecla == TECLAS_CERRAR_FORMULARIO[indice]:
+                formularios_multijugador.pop(jugador.nombre, None)
+                return
+            if tecla == TECLAS_ACEPTAR[indice]:
+                enviar_formulario(f, jugador)
+                return
+            if tecla not in controles[indice]:
+                continue
+            arriba, abajo, _, derecha = controles[indice]
+            if tecla == arriba:
+                f["foco"] = max(0, f["foco"] - 1)
+            elif tecla == abajo:
+                f["foco"] = min(len(f["campos"]) - 1, f["foco"] + 1)
+            else:
+                campo = f["foco"]
+                actual = f["campos"][campo]["elegida"]
+                if actual is None:
+                    opcion = 0 if tecla == derecha else len(f["campos"][campo]["opciones"]) - 1
+                else:
+                    opcion = (actual + (1 if tecla == derecha else -1)) % len(
+                        f["campos"][campo]["opciones"]
+                    )
+                elegir(campo, opcion, f=f)
+            return
+        if tecla == TECLAS_ACEPTAR[indice] and en_consola_mision(jugador):
+            abrir_formulario_multijugador(jugador)
+            return
 
 
 # ====================
@@ -1151,6 +1376,11 @@ def dibujar_paredes():
         pygame.draw.rect(pantalla, PARED, zona.inflate(GROSOR_PARED * 2, GROSOR_PARED * 2), border_radius=10)
     for zona in ZONAS:
         pygame.draw.rect(pantalla, SUELO, zona, border_radius=6)
+    for muro in MUROS_LABERINTO:
+        pygame.draw.rect(pantalla, (34, 55, 77), muro, border_radius=4)
+        pygame.draw.rect(pantalla, (93, 128, 157), muro, 1, border_radius=4)
+        pygame.draw.line(pantalla, (56, 91, 120), (muro.centerx, muro.y + 5),
+                         (muro.centerx, muro.bottom - 5), 1)
 
 
 def dibujar_icono_sala(nombre, centro, color):
@@ -1469,20 +1699,29 @@ def dibujar_nave(tiempo):
                 pygame.draw.line(pantalla, color_luz, (pasillo.right - 18, y),
                                  (pasillo.right - 11, y), 2)
 
-    objetivo = misiones[mision_actual] if mision_actual < len(misiones) else None
+    responsables_por_mision = {
+        indice: jugador for jugador in jugadores
+        if (indice := mision_para_jugador(jugador)) is not None
+    } if len(jugadores) > 1 else (
+        {mision_actual: responsable_actual()}
+        if mision_actual < len(misiones) and responsable_actual() is not None else {}
+    )
     pulso = 0.5 + 0.5 * math.sin(tiempo * 3.2)
     for nombre, sala in salas.items():
         color = COLORES_SALA[nombre]
         indices = [i for i, m in enumerate(misiones) if m["sala"] == nombre]
-        activa = objetivo is not None and objetivo["sala"] == nombre
+        indices_activas = [i for i in indices if i in responsables_por_mision]
+        activa = bool(indices_activas)
+        jugadores_sala = [responsables_por_mision[i] for i in indices_activas]
+        responsable_sala = next((j for j in jugadores_sala if en_sector(j)),
+                                jugadores_sala[0] if jugadores_sala else None)
         pygame.draw.rect(pantalla, (17, 32, 52), sala, border_radius=12)
         dibujar_equipo_sala(nombre, sala, color, tiempo)
         if sala.width >= 400:
             texto("CONSOLA AUXILIAR", fuente_mini, APAGADO,
                   (sala.x + 76, sala.y + 55), sombra=False)
-            for modulo in range(4):
-                x = sala.x + 76 + modulo * 72
-                consola_aux = pygame.Rect(x, sala.y + 75, 56, 42)
+            for modulo, consola_aux in enumerate(consolas_auxiliares(sala)):
+                x = consola_aux.x
                 pantalla_aux = pygame.Rect(x + 5, sala.y + 5 + 75, 46, 22)
                 pygame.draw.rect(pantalla, (10, 22, 38), consola_aux, border_radius=4)
                 pygame.draw.rect(pantalla, (39, 61, 83), consola_aux, 1, border_radius=4)
@@ -1527,19 +1766,24 @@ def dibujar_nave(tiempo):
                            mezclar((17, 32, 52), color, 0.8 if activa else 0.3))
         for k, i in enumerate(indices):
             cx, cy = sala.x + 22 + k * 14, sala.bottom - 18
-            if i < mision_actual:
+            if i in misiones_completadas:
                 pygame.draw.circle(pantalla, VERDE, (cx, cy), 4)
-            elif i == mision_actual:
+            elif i in responsables_por_mision:
                 pygame.draw.circle(pantalla, AMARILLO, (cx, cy), 4 + int(pulso * 2))
             else:
                 pygame.draw.circle(pantalla, BORDE, (cx, cy), 4, 1)
         if activa:
-            if en_sector():
+            if responsable_sala and en_consola_mision(responsable_sala):
                 a = int(150 + 105 * pulso)
-                texto("[E]  ABRIR FORMULARIO", fuente_mini_b, (a, int(a * 0.75), 75),
+                jugador_i = jugadores.index(responsable_sala)
+                tecla = TECLAS_ACEPTAR_TEXTO[jugador_i] if len(jugadores) > 1 else "E"
+                texto(f"[{tecla}]  ABRIR FORMULARIO", fuente_mini_b, (a, int(a * 0.75), 75),
+                      (sala.centerx, sala.bottom - 24), centro=True)
+            elif responsable_sala and en_sector(responsable_sala):
+                texto("ACÉRCATE A UNA CONSOLA", fuente_mini, AMARILLO,
                       (sala.centerx, sala.bottom - 24), centro=True)
             else:
-                texto(asignacion[mision_actual].upper(), fuente_mini, mezclar(APAGADO, BLANCO, 0.5),
+                texto(responsable_sala.nombre.upper(), fuente_mini, mezclar(APAGADO, BLANCO, 0.5),
                       (sala.centerx, sala.centery + 6), centro=True)
 
     for puerta in PUERTAS + list(PUERTAS_EXTRA):
@@ -1561,35 +1805,133 @@ def dibujar_nave(tiempo):
                              (hueco.centerx, hueco.bottom - 10), 1)
 
 
-def dibujar_mapa_vista(tiempo):
+def actualizar_capa_mapa(tiempo):
     global pantalla
     capa_mapa.fill((0, 0, 0, 0))
     pantalla_anterior = pantalla
     pantalla = capa_mapa
     try:
         dibujar_nave(tiempo)
-        responsable = responsable_actual()
+        responsables_activos = ({j.nombre for j in jugadores if mision_para_jugador(j) is not None}
+                                if len(jugadores) > 1 else
+                                {responsable_actual().nombre} if responsable_actual() else set())
         for jugador in sorted(jugadores, key=lambda j: j.y):
-            jugador.dibujar(jugador is responsable)
+            jugador.dibujar(jugador.nombre in responsables_activos)
         dibujar_particulas()
     finally:
         pantalla = pantalla_anterior
 
-    recorte_x = max(0, min(MUNDO_ANCHO - ANCHO_RECORTE,
-                           int(camara_mapa[0] / ZOOM_MAPA)))
-    recorte_y = max(0, min(MUNDO_ALTO - ALTO_RECORTE,
-                           int(camara_mapa[1] / ZOOM_MAPA)))
-    recorte = pygame.Rect(recorte_x, recorte_y, ANCHO_RECORTE, ALTO_RECORTE)
-    pygame.transform.smoothscale(capa_mapa.subsurface(recorte), capa_mapa_zoom.get_size(), capa_mapa_zoom)
-    desplazamiento_x = round(camara_mapa[0] - recorte_x * ZOOM_MAPA)
-    desplazamiento_y = round(camara_mapa[1] - recorte_y * ZOOM_MAPA)
+
+def dibujar_region_mapa(camara, zoom, vista):
+    ancho_recorte = min(MUNDO_ANCHO, math.ceil(vista.width / zoom) + 2)
+    alto_recorte = min(MUNDO_ALTO, math.ceil(vista.height / zoom) + 2)
+    recorte_x = max(0, min(MUNDO_ANCHO - ancho_recorte, int(camara[0] / zoom)))
+    recorte_y = max(0, min(MUNDO_ALTO - alto_recorte, int(camara[1] / zoom)))
+    recorte = pygame.Rect(recorte_x, recorte_y, ancho_recorte, alto_recorte)
+    if vista == MAPA_VISTA and zoom == ZOOM_MAPA:
+        capa_zoom = capa_mapa_zoom
+    else:
+        clave = (vista.width, vista.height, zoom)
+        if clave not in capas_mapa_zoom:
+            tamano = (round(ancho_recorte * zoom), round(alto_recorte * zoom))
+            capas_mapa_zoom[clave] = pygame.Surface(tamano, pygame.SRCALPHA)
+        capa_zoom = capas_mapa_zoom[clave]
+    pygame.transform.smoothscale(capa_mapa.subsurface(recorte), capa_zoom.get_size(), capa_zoom)
+    desplazamiento_x = round(camara[0] - recorte_x * zoom)
+    desplazamiento_y = round(camara[1] - recorte_y * zoom)
     recorte_anterior = pantalla.get_clip()
-    pantalla.set_clip(MAPA_VISTA)
+    pantalla.set_clip(vista)
     try:
-        pantalla.blit(capa_mapa_zoom, (MAPA_VISTA.x - desplazamiento_x,
-                                      MAPA_VISTA.y - desplazamiento_y))
+        pantalla.blit(capa_zoom, (vista.x - desplazamiento_x, vista.y - desplazamiento_y))
     finally:
         pantalla.set_clip(recorte_anterior)
+
+
+def dibujar_mapa_vista(tiempo):
+    actualizar_capa_mapa(tiempo)
+    dibujar_region_mapa(camara_mapa, ZOOM_MAPA, MAPA_VISTA)
+
+
+def dibujar_mapa_multijugador(tiempo):
+    actualizar_capa_mapa(tiempo)
+    vistas = vistas_multijugador()
+    zoom = zoom_multijugador(len(jugadores))
+    for indice, (jugador, vista) in enumerate(zip(jugadores, vistas)):
+        dibujar_region_mapa(camara_multijugador[indice], zoom, vista)
+        pygame.draw.rect(pantalla, (75, 111, 143), vista, 1)
+        mision = mision_para_jugador(jugador)
+        destino = NOMBRES_SALA[misiones[mision]["sala"]] if mision is not None else "TAREAS LISTAS"
+        placa = pygame.Rect(vista.x + 8, vista.y + 8, min(390, vista.width - 16), 24)
+        rect_alpha(pantalla, PANEL_BG, placa, 220, 6)
+        pygame.draw.circle(pantalla, jugador.color, (placa.x + 12, placa.centery), 4)
+        texto(f"{indice + 1}. {jugador.nombre.upper()}  {TECLAS_TEXTO[indice]}  ·  {destino}",
+              fuente_mini_b, BLANCO, (placa.x + 23, placa.y + 5), sombra=False)
+
+
+def dibujar_formularios_multijugador():
+    for indice, (jugador, vista) in enumerate(zip(jugadores, vistas_multijugador())):
+        f = formularios_multijugador.get(jugador.nombre)
+        if f is None:
+            continue
+        rect_alpha(pantalla, (2, 7, 16), vista, 190, 0)
+        panel = vista.inflate(-18, -18)
+        m = misiones[f["idx"]]
+        color_sala = COLORES_SALA[m["sala"]]
+        rect_alpha(pantalla, PANEL_BG, panel, 250, 12)
+        pygame.draw.rect(pantalla, color_sala, panel, 1, border_radius=12)
+
+        if f["exito"] is not None:
+            texto("MISIÓN COMPLETADA", fuente_mediana, VERDE,
+                  (panel.centerx, panel.centery - 12), centro=True)
+            texto("La siguiente tarea de tu tripulación ya está disponible.",
+                  fuente_mini, SUAVE, (panel.centerx, panel.centery + 16), centro=True,
+                  sombra=False)
+            continue
+
+        texto(f"MISIÓN {f['idx'] + 1:02d}/{len(misiones):02d} · {m['titulo']}",
+              fuente_mini_b, color_sala, (panel.x + 10, panel.y + 7), sombra=False)
+        if f["mensaje"]:
+            ayuda = f["mensaje"]
+            color_ayuda = f["color"]
+        else:
+            ayuda = (f"↑↓ pregunta · ←→ respuesta · {TECLAS_ACEPTAR_TEXTO[indice]} confirmar"
+                     f" · {TECLAS_CERRAR_TEXTO[indice]} cerrar")
+            color_ayuda = APAGADO
+        texto(ayuda, fuente_micro, color_ayuda, (panel.x + 10, panel.y + 25), sombra=False)
+
+        inicio_filas = panel.y + 44
+        alto_fila = max(1, (panel.bottom - 7 - inicio_filas) // len(f["campos"]))
+        for campo_i, campo in enumerate(f["campos"]):
+            fila = pygame.Rect(panel.x + 8, inicio_filas + campo_i * alto_fila,
+                               panel.width - 16, alto_fila - 4)
+            color_borde = ROJO if campo["error"] else AMARILLO if campo_i == f["foco"] else BORDE
+            pygame.draw.rect(pantalla, (11, 24, 40), fila, border_radius=5)
+            pygame.draw.rect(pantalla, color_borde, fila, 1, border_radius=5)
+            lineas = partir_texto(campo["pregunta"], fuente_micro, fila.width - 12)
+            max_lineas = max(1, min(len(lineas), (fila.height - 30) // 13))
+            for linea_i, linea in enumerate(lineas[:max_lineas]):
+                texto(linea, fuente_micro, BLANCO, (fila.x + 6, fila.y + 3 + linea_i * 13),
+                      sombra=False)
+
+            opciones_y = fila.y + 5 + max_lineas * 13
+            opciones_h = max(15, fila.bottom - opciones_y - 4)
+            ancho_opcion = (fila.width - 16) // len(campo["opciones"])
+            for opcion_i, opcion in enumerate(campo["opciones"]):
+                caja = pygame.Rect(fila.x + 4 + opcion_i * (ancho_opcion + 4),
+                                   opciones_y, ancho_opcion, opciones_h)
+                seleccionada = campo["elegida"] == opcion_i
+                color_opcion = VERDE if campo["bloqueado"] else (
+                    AMARILLO if seleccionada else (58, 78, 99)
+                )
+                pygame.draw.rect(pantalla, (19, 34, 52), caja, border_radius=4)
+                pygame.draw.rect(pantalla, color_opcion, caja, 1, border_radius=4)
+                texto(str(opcion_i + 1), fuente_micro, color_opcion,
+                      (caja.x + 4, caja.y + 3), sombra=False)
+                lineas_opcion = partir_texto(opcion, fuente_micro, caja.width - 24)
+                limite = max(1, (caja.height - 6) // 13)
+                for linea_i, linea in enumerate(lineas_opcion[:limite]):
+                    texto(linea, fuente_micro, BLANCO if seleccionada else SUAVE,
+                          (caja.x + 18, caja.y + 3 + linea_i * 13), sombra=False)
 
 
 def dibujar_mapa_general(tiempo):
@@ -1615,13 +1957,25 @@ def dibujar_mapa_general(tiempo):
     def posicion_mapa(x, y):
         return (mapa_rect.x + round(x * escala), mapa_rect.y + round(y * escala))
 
-    objetivo = misiones[mision_actual]["sala"] if mision_actual < len(misiones) else None
-    if objetivo in salas:
-        sala_objetivo = salas[objetivo]
-        destino = pygame.Rect(round(sala_objetivo.x * escala), round(sala_objetivo.y * escala),
-                              round(sala_objetivo.width * escala), round(sala_objetivo.height * escala))
-        destino.move_ip(mapa_rect.topleft)
-        pygame.draw.rect(pantalla, AMARILLO, destino, 3, border_radius=5)
+    if len(jugadores) > 1:
+        objetivos = [(j, mision_para_jugador(j)) for j in jugadores]
+        for jugador, indice in objetivos:
+            if indice is None:
+                continue
+            sala_objetivo = salas[misiones[indice]["sala"]]
+            destino = pygame.Rect(round(sala_objetivo.x * escala), round(sala_objetivo.y * escala),
+                                  round(sala_objetivo.width * escala), round(sala_objetivo.height * escala))
+            destino.move_ip(mapa_rect.topleft)
+            pygame.draw.rect(pantalla, jugador.color, destino, 3, border_radius=5)
+        objetivo = None
+    else:
+        objetivo = misiones[mision_actual]["sala"] if mision_actual < len(misiones) else None
+        if objetivo in salas:
+            sala_objetivo = salas[objetivo]
+            destino = pygame.Rect(round(sala_objetivo.x * escala), round(sala_objetivo.y * escala),
+                                  round(sala_objetivo.width * escala), round(sala_objetivo.height * escala))
+            destino.move_ip(mapa_rect.topleft)
+            pygame.draw.rect(pantalla, AMARILLO, destino, 3, border_radius=5)
 
     abreviaturas = {
         "ENERGIA": "ENERGÍA", "OXIGENO": "OXÍGENO", "NAVEGACION": "NAVEG.",
@@ -1647,8 +2001,15 @@ def dibujar_mapa_general(tiempo):
         texto(str(indice + 1), fuente_mini_b, BLANCO, (centro[0], centro[1] - 18),
               centro=True, sombra=False)
 
-    destino_nombre = NOMBRES_SALA.get(objetivo, "MISIONES COMPLETADAS")
-    texto(f"DESTINO ACTUAL: {destino_nombre}", fuente_mini_b, AMARILLO,
+    if len(jugadores) > 1:
+        destinos = [NOMBRES_SALA[misiones[indice]["sala"]]
+                    for _, indice in objetivos if indice is not None]
+        destino_nombre = " · ".join(destinos) if destinos else "TODAS COMPLETADAS"
+        etiqueta_destino = f"DESTINOS ACTIVOS: {destino_nombre}  ·  {len(misiones_completadas)}/{len(misiones)}"
+    else:
+        destino_nombre = NOMBRES_SALA.get(objetivo, "MISIONES COMPLETADAS")
+        etiqueta_destino = f"DESTINO ACTUAL: {destino_nombre}"
+    texto(etiqueta_destino, fuente_mini_b, AMARILLO,
           (panel.x + 30, panel.bottom - 34), sombra=False)
     texto("M  /  ESC  CERRAR MAPA", fuente_mini, APAGADO,
           (panel.right - 30, panel.bottom - 32), derecha=True, sombra=False)
@@ -1682,13 +2043,53 @@ def dibujar_cabecera():
     texto(f"CML {cml_actual()}  ·  VUELO", fuente_mini_b, SUAVE, (36, 102), sombra=False)
     texto(f"PTS {fmt_puntos(puntuacion)}", fuente_mini_b, AMARILLO, (276, 102),
           derecha=True, sombra=False)
+    activas = {mision_para_jugador(j) for j in jugadores} if len(jugadores) > 1 else set()
     for i in range(len(misiones)):
-        color = VERDE if i < mision_actual else AMARILLO if i == mision_actual else BORDE
+        if i in misiones_completadas:
+            color = VERDE
+        elif i in activas or (len(jugadores) == 1 and i == mision_actual):
+            color = AMARILLO
+        else:
+            color = BORDE
         pygame.draw.rect(pantalla, color, (142 + i * 11, 117, 8, 3), border_radius=2)
     dibujar_recursos()
 
 
 def mostrar_mision():
+    if len(jugadores) > 1:
+        tarjeta = pygame.Rect(302, 14, 478, 112)
+        rect_alpha(pantalla, PANEL_BG, tarjeta, 252, 12)
+        pygame.draw.rect(pantalla, (49, 73, 96), tarjeta, 1, border_radius=12)
+        pygame.draw.line(pantalla, AZUL, (tarjeta.x + 14, tarjeta.y + 13),
+                         (tarjeta.x + 14, tarjeta.bottom - 13), 2)
+        activas = [(j, mision_para_jugador(j)) for j in jugadores]
+        activas = [(j, idx) for j, idx in activas if idx is not None]
+        indice_met = min((idx for _, idx in activas), default=None)
+        if indice_met is not None:
+            m = misiones[indice_met]
+            met_txt = ("≈ " if m["aprox"] else "") + fmt_met(m["met"])
+        else:
+            met_txt = fmt_met(met_vis)
+        restantes = [OBJETIVO_URGENCIA - temporizadores_multijugador[j.nombre] for j, _ in activas]
+        urgencia = min(restantes, default=OBJETIVO_URGENCIA)
+        if urgencia > 0:
+            segundos = math.ceil(urgencia)
+            etiqueta = f"BONO {segundos // 60:02d}:{segundos % 60:02d}"
+            color = ROJO_CLARO if urgencia <= 10 else AMARILLO if urgencia <= 15 else AZUL
+        else:
+            etiqueta = f"ALERTA +{int(-urgencia):02d}s"
+            color = ROJO_CLARO if int(tiempo_juego * 4) % 2 else ROJO
+        texto(f"MISIONES EN PARALELO  ·  {len(misiones_completadas):02d}/{len(misiones):02d}",
+              fuente_mini_b, AMARILLO, (tarjeta.x + 26, tarjeta.y + 10), sombra=False)
+        texto(etiqueta, fuente_mini_b, color, (tarjeta.right - 14, tarjeta.y + 10),
+              derecha=True, sombra=False)
+        texto(f"{len(activas)} ACTIVAS  ·  MET {met_txt}",
+              fuente, BLANCO, (tarjeta.x + 26, tarjeta.y + 31), sombra=False)
+        texto("Cada tripulante tiene un destino y formulario independientes.",
+              fuente_mini, SUAVE, (tarjeta.x + 26, tarjeta.y + 57), sombra=False)
+        texto("Responde en tu propia vista para seguir con tu siguiente tarea.",
+              fuente_mini, SUAVE, (tarjeta.x + 26, tarjeta.y + 77), sombra=False)
+        return
     if mision_actual >= len(misiones):
         return
     m = misiones[mision_actual]
@@ -1744,17 +2145,24 @@ def dibujar_alertas():
 
 
 def dibujar_tripulacion():
-    resp = asignacion[mision_actual] if mision_actual < len(misiones) else None
+    resp = (asignacion[mision_actual]
+            if len(jugadores) <= 1 and mision_actual < len(misiones) else None)
+    responsables_activos = {
+        j.nombre for j in jugadores if len(jugadores) > 1 and mision_para_jugador(j) is not None
+    }
     rect_alpha(pantalla, PANEL_BG, pygame.Rect(0, ALTO - 36, ANCHO, 36), 244, 0)
     pygame.draw.line(pantalla, (43, 66, 87), (0, ALTO - 36), (ANCHO, ALTO - 36), 1)
     for i, j in enumerate(jugadores):
         x = 40 + i * 215
-        hechas = sum(1 for k in range(min(mision_actual, len(misiones))) if asignacion[k] == j.nombre)
+        hechas = sum(1 for k, responsable in enumerate(asignacion)
+                     if responsable == j.nombre and k in misiones_completadas)
         total = sum(1 for a in asignacion if a == j.nombre)
         pygame.draw.circle(pantalla, j.color, (x + 5, 701), 4)
         texto(f"{j.nombre.upper()}  {TECLAS_TEXTO[i]}  {hechas}/{total}",
-              fuente_mini, BLANCO if j.nombre == resp else SUAVE, (x + 16, 694), sombra=False)
-    texto("E  INTERACTUAR   ·   M  MAPA   ·   ESC  PAUSA   ·   F11  PANTALLA",
+              fuente_mini, BLANCO if j.nombre == resp or j.nombre in responsables_activos else SUAVE,
+              (x + 16, 694), sombra=False)
+    interaccion = "E/ENTER/U/Y MISIÓN" if len(jugadores) > 1 else "E  INTERACTUAR"
+    texto(f"{interaccion}   ·   M  MAPA   ·   ESC  PAUSA   ·   F11  PANTALLA",
           fuente_mini, APAGADO, (ANCHO - 24, 694),
           derecha=True, sombra=False)
 
@@ -2164,8 +2572,11 @@ def dibujar_pausa(mouse, tiempo):
     pygame.draw.line(pantalla, (40, 65, 91), (panel.x + 34, panel.y + 218),
                      (panel.right - 34, panel.y + 218), 1)
 
-    datos = (("TIEMPO DE VUELO", fmt_met(met_vis)),
-             ("MISIÓN ACTUAL", f"{min(mision_actual + 1, len(misiones)):02d} / {len(misiones):02d}"))
+    etiqueta_mision = "COMPLETADAS" if len(jugadores) > 1 else "MISIÓN ACTUAL"
+    valor_mision = (f"{len(misiones_completadas):02d} / {len(misiones):02d}"
+                    if len(jugadores) > 1
+                    else f"{min(mision_actual + 1, len(misiones)):02d} / {len(misiones):02d}")
+    datos = (("TIEMPO DE VUELO", fmt_met(met_vis)), (etiqueta_mision, valor_mision))
     for i, (etiqueta, valor) in enumerate(datos):
         caja = pygame.Rect(panel.x + 34 + i * 270, panel.y + 235, 260, 56)
         rect_alpha(pantalla, (15, 31, 51), caja, 245, 9)
@@ -2245,7 +2656,9 @@ def main():
                     elif evento.key == pygame.K_m:
                         tiempo_pausa = tiempo
                         estado = "mapa"
-                    elif evento.key == pygame.K_e and en_sector():
+                    elif len(jugadores) > 1:
+                        manejar_tecla_multijugador(evento.key)
+                    elif evento.key == pygame.K_e and en_consola_mision():
                         abrir_formulario()
 
             elif estado == "mapa":
@@ -2307,9 +2720,14 @@ def main():
             if estado == "juego":
                 teclas = pygame.key.get_pressed()
                 for i, jugador in enumerate(jugadores):
+                    if len(jugadores) > 1 and jugador.nombre in formularios_multijugador:
+                        continue
                     jugador.mover(teclas, controles[i], dt)
             actualizar_recursos(dt)
-            actualizar_formulario(dt)
+            if len(jugadores) > 1:
+                actualizar_formularios_multijugador(dt)
+            else:
+                actualizar_formulario(dt)
 
         if estado == "menu":
             dibujar_menu(mouse, tiempo)
@@ -2317,13 +2735,21 @@ def main():
             tiempo_escena = tiempo_pausa if estado in ("pausa", "mapa") else tiempo
             dibujar_fondo(tiempo_escena)
             if estado not in ("pausa", "mapa"):
-                actualizar_camara_mapa(dt)
-            dibujar_mapa_vista(tiempo_escena)
+                if len(jugadores) > 1:
+                    actualizar_camaras_multijugador(dt)
+                else:
+                    actualizar_camara_mapa(dt)
+            if len(jugadores) > 1:
+                dibujar_mapa_multijugador(tiempo_escena)
+            else:
+                dibujar_mapa_vista(tiempo_escena)
             dibujar_cabecera()
             mostrar_mision()
             dibujar_tripulacion()
             dibujar_alertas()
             dibujar_flash()
+            if len(jugadores) > 1 and estado == "juego":
+                dibujar_formularios_multijugador()
             if estado == "formulario" and formulario:
                 dibujar_formulario(mouse, dt)
             elif estado == "pausa":
