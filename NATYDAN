@@ -26,17 +26,16 @@ pygame.mixer.init()
 
 
 # MUSICA DE FONDO
-pygame.mixer.music.load(r"C:\Users\naty\Documents\sonidos\alarm.mp3")
+pygame.mixer.music.load(r"alarm.mp3")
 pygame.mixer.music.set_volume(0.2)
 # BUCLE INFINITO
 pygame.mixer.music.play(-1)
 # ESTALLIDO
-sonido_inicio = pygame.mixer.Sound(r"C:\Users\naty\Documents\sonidos\inicio.mp3")
+sonido_inicio = pygame.mixer.Sound(r"inicio.mp3")
 sonido_inicio.set_volume(0.7)
-sonido_inicio.play()
 
-sonido_mision = pygame.mixer.Sound(r"C:\Users\naty\Documents\sonidos\message.mp3")
-sonido_perder = pygame.mixer.Sound(r"C:\Users\naty\Documents\sonidos\end.mp3")
+sonido_mision = pygame.mixer.Sound(r"message.mp3")
+sonido_perder = pygame.mixer.Sound(r"end.mp3")
 
 # CONFIG
 
@@ -2651,6 +2650,7 @@ def main():
                         if boton.collidepoint(pos):
                             crear_jugadores(i + 1)
                             estado = "juego"
+                            sonido_inicio.play()
                             break
                 if evento.type == pygame.KEYDOWN and pygame.K_1 <= evento.key <= pygame.K_4:
                     crear_jugadores(evento.key - pygame.K_0)
