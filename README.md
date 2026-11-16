@@ -49,3 +49,5 @@ ola ya vuelve por favor :(
 
 
 olaaa buenos dias oye como estas dime dime aparte de bello caray, eres muy iteligente q bello, sigue descansando
+
+oye ola guapa me gustas muchíisimo, ya quiero que sea martes para poder verte jeje. Te quiero mucho guapa jeje <3
