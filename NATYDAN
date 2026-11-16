@@ -1,21 +1,3 @@
-"""
-APOLLO 13 - Misión: regreso a casa
-
-Versión independiente de un solo archivo Python: integra el juego, el banco de
-preguntas y las mejoras. Los sonidos y el archivo de puntuaciones siguen siendo
-recursos externos y deben estar junto a este script.
-Los eventos y preguntas siguen la cronología del artículo de la NASA "Houston,
-hemos tenido un problema" (J. Uri).
-El reloj MET marca el suceso histórico activo y salta al siguiente hito al completar
-cada misión; no intenta reproducir el tiempo real de vuelo.
-
-Dinámica: energía, oxígeno y depuración de CO2 cambian durante el vuelo. La
-tripulación también debe administrar comida y agua, cuidar su salud, usar los
-suministros médicos y entrenar periódicamente en el gimnasio. Cada misión completada
-recupera el consumible correspondiente; cada respuesta incorrecta lo castiga. Si un
-sistema crítico se agota o un tripulante fallece, la misión fracasa.
-"""
-
 import math
 import json
 import random
@@ -380,6 +362,7 @@ PUERTAS_EXTRA = (
 ZONAS = list(salas.values()) + [PASILLO] + PASILLOS_EXTRA + PUERTAS + list(PUERTAS_EXTRA)
 GROSOR_PARED = 6
 
+#FUNCIONES
 
 def punto_caminable(px, py):
     """Indica si un punto pertenece a una sala, pasillo o puerta transitable."""
@@ -619,8 +602,6 @@ CAUSA_FALLO = {
     "vida": "La tripulación no pudo sobrevivir a las lesiones o a la falta de alimento y agua.",
 }
 
-# Banco de preguntas sobre madurez de concepto, organizado por rol.
-# Cada rol contiene tres grupos, uno para cada nivel CML 2, CML 3 y CML 4.
 CML_SETS = {'Director': [[('En CML 2 la idea se cuestiona desde el punto de vista…',
                 'Científico, técnico y programático',
                 ['Únicamente técnico', 'Únicamente de costo y calendario']),
@@ -915,7 +896,6 @@ misiones = [
      ]},
 ]
 
-# Justificación factual o técnica de cada pregunta.
 JUSTIFICACIONES = {
     "En CML 2 la idea se cuestiona desde el punto de vista…":
         "Evaluar la viabilidad desde un solo eje deja fuera dimensiones importantes que esta fase también considera.",
@@ -1089,21 +1069,16 @@ JUSTIFICACIONES = {
 
 # ESTADO DE PARTIDA
 
-# Variables globales del estado de juego, interfaz, temporizadores y puntuación.
 estado = "menu"
 tiempo_pausa = 0.0
-# El MET avanza entre eventos históricos; no representa horas de vuelo en tiempo real.
 mision_actual = 0
 asignacion = []
 formulario = None
 cache_forms = {}
 causa_fallo = "energia"
 
-# Valores por defecto al cargar el módulo. Al empezar una partida, crear_jugadores
-# restablece los tres medidores a 100 %; en multijugador son compartidos.
 recursos = {"energia": 100.0, "oxigeno": 100.0, "co2": 0.0}
-# Copia interpolada solo para dibujar las barras sin saltos; las reglas consultan
-# y modifican "recursos".
+
 recursos_vis = dict(recursos)
 suministros = {"comida": 0, "agua": 0, "vendajes": 0, "botiquines": 0}
 limites_suministros = dict(suministros)
@@ -1123,8 +1098,6 @@ formularios_multijugador = {}
 temporizadores_multijugador = {}
 alarmas_urgencia_multijugador = set()
 
-# Cada tupla indica (texto de alerta, recurso afectado, cantidad que se resta).
-# Un valor negativo invierte la resta y, por tanto, suma puntos al medidor.
 EVENTOS = [
     ("Cortocircuito en la batería 2 de la etapa de descenso", "energia", 7),
     ("Condensación en la cabina: los cartuchos de LiOH pierden eficacia", "co2", -7),
@@ -1133,8 +1106,6 @@ EVENTOS = [
     ("Oscilación por liberación de gases del Módulo de Servicio", "oxigeno", 5),
 ]
 
-# Cada jugador tiene su propia combinación de teclas; aceptar y cerrar también
-# usan una tecla distinta para que puedan jugar varias personas en el mismo teclado.
 jugadores = []
 controles = [
     [pygame.K_w, pygame.K_s, pygame.K_a, pygame.K_d],
@@ -1160,11 +1131,9 @@ MOTAS_CORREDOR = [
     for _ in range(20)
 ]
 
-
 def fmt_puntos(valor):
     """Muestra una puntuación entera usando puntos como separadores de miles."""
     return f"{int(valor):,}".replace(",", ".")
-
 
 def cargar_puntuaciones():
     """Carga y valida el archivo local de récords antes de mostrarlos."""
@@ -1501,16 +1470,10 @@ def interactuar_servicios(jugador):
         return True
     return False
 
-
-# ====================
-# ALERTAS, EVENTOS Y RECURSOS
-# ====================
-
 def lanzar_alerta(cadena, color, dur=4.0):
     """Añade una alerta temporal y limita la lista a las tres más recientes."""
     alertas.append({"texto": cadena, "color": color, "t": 0.0, "dur": dur})
     del alertas[:-3]
-
 
 def lanzar_evento():
     """Selecciona un incidente aleatorio, aplica su efecto y activa señales visuales."""
@@ -1520,7 +1483,6 @@ def lanzar_evento():
     lanzar_alerta(f"INCIDENTE: {cadena}  (-{dano} % {RECURSOS_INFO[rec][0].lower()})", ROJO_CLARO, 5.5)
     sacudida = 0.5
     flash_rojo = 0.6
-
 
 def actualizar_efectos(dt):
     """Reduce los temporizadores de efectos y actualiza alertas y partículas."""
@@ -1536,7 +1498,6 @@ def actualizar_efectos(dt):
         a["t"] += dt
     alertas[:] = [a for a in alertas if a["t"] < a["dur"]]
     actualizar_particulas(dt)
-
 
 def actualizar_recursos(dt):
     """Actualiza sistemas, ejercicio, necesidades, incidentes y condiciones de fracaso."""
@@ -1591,9 +1552,7 @@ def actualizar_recursos(dt):
                 tiempo_penalizacion = min(dt, max(0.0, -jugador.tiempo_para_ejercicio))
                 jugador.recibir_dano(DANO_FALTA_EJERCICIO * tiempo_penalizacion)
 
-    # Energía y oxígeno disminuyen; el signo negativo hace que aumente la carga de CO2.
     for k in recursos:
-        # Se evita bajar de cero; la barra visible sigue al valor real suavemente.
         recursos[k] = max(0.0, recursos[k] - DRENAJE[k] * dt)
     if tiempo_ejercicio_activo:
         recursos["oxigeno"] = max(
@@ -1616,7 +1575,6 @@ def actualizar_recursos(dt):
     agotado = next((k for k, v in recursos.items() if v <= 0), None)
     tripulante_fallecido = next((j.nombre for j in jugadores if j.vida <= 0), None)
     if agotado or tripulante_fallecido:
-        # El primer recurso que llega a cero determina el mensaje de fracaso.
         causa_fallo = agotado if agotado else "vida"
         formulario = None
         formularios_multijugador.clear()
@@ -1625,7 +1583,6 @@ def actualizar_recursos(dt):
 
 PW, PH = 980, 690
 PX, PY = (ANCHO - PW) // 2, (ALTO - PH) // 2
-
 
 def sortear_preguntas(idx):
     """3 preguntas al azar del banco: al menos una de la historia y una de CML."""
@@ -1730,7 +1687,6 @@ def enviar_formulario(f=None, jugador=None):
             c["elegida"] = None
             errores += 1
     rec = m["recurso"]
-    # Un error resta PENAL por respuesta; el recurso no puede bajar de cero.
     if errores:
         perdida = errores * PENAL
         recursos[rec] = max(0.0, recursos[rec] - perdida)
@@ -1781,7 +1737,6 @@ def finalizar_exito():
     m = misiones[mision_actual]
     sala = salas[m["sala"]]
     rec = m["recurso"]
-    # La misión recupera su recurso asociado, sin superar el 100 %.
     recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
     bono = max(0, int((OBJETIVO_URGENCIA - t_mision) * PUNTOS_BONO_SEGUNDO))
     puntos_ganados = PUNTOS_BASE_MISION + bono
@@ -1808,7 +1763,6 @@ def finalizar_exito():
     if mision_actual % 4 == 0:
         lanzar_alerta(f"El concepto alcanzó CML {cml_actual()}: {NOMBRES_CML[cml_actual()]}", AZUL, 5.0)
 
-
 def finalizar_exito_multijugador(nombre_jugador):
     """Aplica la recompensa de un jugador y actualiza el progreso compartido."""
     global estado, puntuacion, puesto_puntuacion
@@ -1820,7 +1774,7 @@ def finalizar_exito_multijugador(nombre_jugador):
     jugador = next((j for j in jugadores if j.nombre == nombre_jugador), None)
     sala = salas[m["sala"]]
     rec = m["recurso"]
-    # En multijugador se aplica la misma recuperación sobre el estado compartido.
+
     recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
     duracion = temporizadores_multijugador[nombre_jugador]
     bono = max(0, int((OBJETIVO_URGENCIA - duracion) * PUNTOS_BONO_SEGUNDO))
@@ -1917,10 +1871,7 @@ def manejar_tecla_multijugador(tecla):
                 return
     _manejar_tecla_multijugador_central_base(tecla)
 
-
-# ====================
-# DIBUJO: FONDO, NAVE Y HUD
-# ====================
+# DIBUJO
 
 def dibujar_fondo(tiempo):
     """Pinta el fondo espacial animado con estrellas y meteoros."""
@@ -1935,7 +1886,6 @@ def dibujar_fondo(tiempo):
             q = p / 0.22
             x, y = sx + q * 280, sy + q * 120
             pygame.draw.line(pantalla, mezclar(FONDO, BLANCO, 1 - q), (x, y), (x - 46, y - 20), 2)
-
 
 def dibujar_paredes():
     """Dibuja los suelos, paredes y obstáculos del interior de la nave."""
@@ -2059,7 +2009,6 @@ def dibujar_icono_sala(nombre, centro, color):
                             math.radians(215), math.radians(325), 2)
         pygame.draw.line(pantalla, color, (cx - 16, cy + 13), (cx + 16, cy + 13), 2)
 
-
 def dibujar_equipo_sala(nombre, sala, color, tiempo):
     """Dibuja una consola de sala con indicadores animados según su función."""
     equipo = pygame.Rect(sala.right - 76, sala.bottom - 49, 62, 38)
@@ -2179,7 +2128,6 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
                            centro_luz, 3 if encendida else 2)
         if encendida:
             pygame.draw.circle(pantalla, luz, centro_luz, 4, 1)
-
 
 def dibujar_rack_tecnico(sala, dx, dy, ancho, alto, color, modulos=3):
     """Dibuja un gabinete modular con indicadores y paneles de estado."""
@@ -2580,7 +2528,6 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
         pygame.draw.rect(pantalla, (19, 33, 47), (sala.x + 80, sala.y + 77, 42, 9), border_radius=2)
         pygame.draw.circle(pantalla, VERDE, (sala.x + 144, sala.y + 82), 3)
 
-
 def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
     """Representa un módulo técnico decorativo según el tipo de equipo."""
     pygame.draw.rect(pantalla, (17, 31, 47), rect, border_radius=12)
@@ -2620,7 +2567,6 @@ def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
             pygame.draw.line(pantalla, color, (rect.centerx, y + 3),
                              (rect.centerx, y + 12), 2)
 
-
 def dibujar_casco_anexo():
     """Traza el contorno exterior de la nave y los paneles de su fuselaje."""
     ala_superior = [(2030, 190), (2310, 55), (2260, 325), (2160, 410)]
@@ -2651,7 +2597,6 @@ def dibujar_casco_anexo():
     for x in (480, 560, 2160, 2240):
         for y in (210, 126, 1170):
             pygame.draw.circle(pantalla, (71, 96, 119), (x, y), 2)
-
 
 def dibujar_nave(tiempo):
     """Compone el mapa completo: casco, pasillos, salas, consolas y destinos."""
@@ -2759,7 +2704,7 @@ def dibujar_nave(tiempo):
                 for luz in range(3):
                     tono = color if (tiempo * 2 + modulo + luz) % 3 < 1 else (59, 78, 96)
                     pygame.draw.circle(pantalla, tono, (x + 14 + luz * 14, consola_aux.bottom - 5), 2)
-        # Consola mural compacta, como el instrumental de cada estación.
+        # Consola mural compacta como el instrumental de cada estación.
         consola = pygame.Rect(sala.x + 14, sala.y + 54, 38, 31)
         pygame.draw.rect(pantalla, (11, 23, 39), consola, border_radius=4)
         pygame.draw.rect(pantalla, (39, 61, 83), consola, 1, border_radius=4)
@@ -2911,12 +2856,10 @@ def dibujar_region_mapa(camara, zoom, vista):
     finally:
         pantalla.set_clip(recorte_anterior)
 
-
 def dibujar_mapa_vista(tiempo):
     """Dibuja el mapa de cámara única usado en modo de un jugador."""
     actualizar_capa_mapa(tiempo)
     dibujar_region_mapa(camara_mapa, ZOOM_MAPA, MAPA_VISTA)
-
 
 def dibujar_mapa_multijugador(tiempo):
     """Dibuja una región de mapa y una etiqueta de destino por jugador."""
@@ -2933,7 +2876,6 @@ def dibujar_mapa_multijugador(tiempo):
         pygame.draw.circle(pantalla, jugador.color, (placa.x + 12, placa.centery), 4)
         texto(f"{indice + 1}. {jugador.nombre.upper()}  {TECLAS_TEXTO[indice]}  ·  {destino}",
               fuente_mini_b, BLANCO, (placa.x + 23, placa.y + 5), sombra=False)
-
 
 def dibujar_formularios_multijugador():
     """Superpone los formularios activos dentro de las vistas de sus jugadores."""
@@ -3103,7 +3045,6 @@ def dibujar_mapa_general(tiempo):
     texto("M  /  ESC  CERRAR MAPA", fuente_mini, APAGADO,
           (panel.right - 30, panel.bottom - 32), derecha=True, sombra=False)
 
-
 def dibujar_icono_estado(tipo, x, y, color):
     """Dibuja un icono pequeño para salud, comida o agua."""
     if tipo == "salud":
@@ -3119,7 +3060,6 @@ def dibujar_icono_estado(tipo, x, y, color):
         pygame.draw.polygon(pantalla, color, [(x + 5, y), (x + 1, y + 6),
                                                (x + 2, y + 9), (x + 5, y + 11),
                                                (x + 8, y + 9), (x + 9, y + 6)])
-
 
 def dibujar_recursos():
     """Dibuja los sistemas críticos y las reservas separadas de comida y agua."""
@@ -3149,7 +3089,6 @@ def dibujar_recursos():
         avance = max(0, min(78, int(78 * valor / maximo)))
         pygame.draw.rect(pantalla, color_texto, (x, 52, avance, 5), border_radius=2)
 
-
 def dibujar_cabecera():
     """Dibuja el HUD superior con MET, CML, puntuación y consumibles."""
     paneles = (pygame.Rect(18, 14, 272, 112), pygame.Rect(798, 14, 464, 68))
@@ -3174,7 +3113,6 @@ def dibujar_cabecera():
             color = BORDE
         pygame.draw.rect(pantalla, color, (142 + i * 11, 117, 8, 3), border_radius=2)
     dibujar_recursos()
-
 
 def mostrar_mision():
     """Muestra el resumen de misión individual o el progreso compartido."""
@@ -3260,7 +3198,6 @@ def mostrar_mision():
     texto(f"+{int(RECUPERA)}% {nombre_rec.lower()}", fuente_mini, color_rec,
           (tarjeta.right - 14, tarjeta.y + 98), derecha=True, sombra=False)
 
-
 def dibujar_alertas():
     """Presenta alertas temporales con animación de entrada y salida."""
     y = 132
@@ -3277,7 +3214,6 @@ def dibujar_alertas():
             y += 17
         pygame.draw.line(pantalla, col, (ANCHO - 28, y - 17 * len(lineas)), (ANCHO - 28, y - 3), 2)
         y += 8
-
 
 def dibujar_tripulacion():
     """Dibuja la salud y necesidades de cada jugador junto a sus controles."""
@@ -3348,12 +3284,7 @@ def dibujar_flash():
         s = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
         s.fill((255, 40, 40, int(70 * flash_rojo / 0.6)))
         pantalla.blit(s, (0, 0))
-
-
-# ====================
-# DIBUJO: FORMULARIO
-# ====================
-
+# FORMULARIO
 def _alto_campos(campos, ancho, pad, gap):
     """Estima el alto necesario para dibujar todas las preguntas y opciones."""
     total = 0
@@ -3397,7 +3328,6 @@ def dibujar_formulario(mouse, dt):
     lienzo.set_alpha(int(255 * ap))
     pantalla.blit(lienzo, (ox, oy))
 
-
 def _contenido_formulario(f, m, color_sala, t, dt, ml):
     """Dibuja el contenido del formulario y actualiza sus zonas interactivas."""
     campos = f["campos"]
@@ -3406,7 +3336,7 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
     for cx, cy, sx, sy in ((10, 10, 1, 1), (PW - 10, 10, -1, 1), (10, PH - 10, 1, -1), (PW - 10, PH - 10, -1, -1)):
         pygame.draw.line(pantalla, color_sala, (cx, cy), (cx + 24 * sx, cy), 3)
         pygame.draw.line(pantalla, color_sala, (cx, cy), (cx, cy + 24 * sy), 3)
-    # barrido de escáner
+   
     rect_alpha(pantalla, color_sala, pygame.Rect(14, int((t * 140) % (PH - 40)) + 18, PW - 28, 2), 22, 1)
 
     texto("FORMULARIO DE MISIÓN", fuente_mini_b, AMARILLO, (34, 18), sombra=False)
@@ -3414,7 +3344,6 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
     texto(f"HORA DE VUELO  {met_txt}", fuente_mini, SUAVE, (PW - 34, 18), derecha=True, sombra=False)
     pygame.draw.line(pantalla, LINEA, (28, 46), (PW - 28, 46), 1)
 
-    # ---------- barra lateral ----------
     cxs = 119
     for k in range(16):
         ang = t * 0.9 + k * math.tau / 16
@@ -3457,7 +3386,6 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
             pygame.draw.circle(pantalla, BORDE, (px, py), 8, 2)
     pygame.draw.line(pantalla, LINEA, (232, 62), (232, PH - 70), 1)
 
-    # ---------- zona de preguntas ----------
     x0, ancho = 258, PW - 258 - 30
     y_ini = 148
     errores = [(i, campo) for i, campo in enumerate(campos) if campo["error"]]
@@ -3541,7 +3469,7 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
                 texto(linea, fuente_o, col_o, (rect.x + 44, rect.y + pad // 2 + k * 19), sombra=False)
             f["zonas"].append((i, j, rect))
             yy += h + 5
-        if c["bloqueado"]:  # marca de verificación
+        if c["bloqueado"]:  
             cx, cy = x0 + ancho - 70, y_bloque + 11
             pygame.draw.lines(pantalla, VERDE, False, [(cx - 7, cy), (cx - 2, cy + 6), (cx + 8, cy - 7)], 3)
         elif c["error"]:
@@ -3552,7 +3480,6 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
                              (x0 - 12, y_bloque + 2), (x0 - 12, yy - 6), 2)
         y = yy + gap
 
-    # ---------- pie ----------
     if f["mensaje"]:
         texto(f["mensaje"], fuente_mini_b, f["color"], (x0, PH - 64), sombra=False)
     texto("1-3 elegir   ·   ↑ ↓ cambiar de campo   ·   ENTER enviar   ·   ESC cerrar", fuente_mini, APAGADO,
@@ -3571,7 +3498,6 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
           sombra=False)
     f["btn_enviar"], f["btn_cerrar"] = r_env, r_cer
 
-    # ---------- animación de éxito ----------
     if f["exito"] is not None:
         p = f["exito"]
         rect_alpha(pantalla, PANEL_BG, pygame.Rect(0, 0, PW, PH), min(232, p * 700), 18)
@@ -3597,12 +3523,7 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
               sombra=False)
         texto(f"+{int(RECUPERA)} % {nombre_rec}", fuente, mezclar(PANEL_BG, col_rec, q3), (cx, cy + 142),
               centro=True, sombra=False)
-
-
-# ====================
 # MENÚ Y PANTALLAS FINALES
-# ====================
-
 def dibujar_menu(mouse, tiempo):
     """Dibuja el menú inicial, récords y opciones de tamaño de tripulación."""
     dibujar_fondo(tiempo)
@@ -3649,8 +3570,7 @@ def dibujar_menu(mouse, tiempo):
     pygame.draw.circle(pantalla, AZUL, (nave_x, nave_y), 7)
     pygame.draw.circle(pantalla, BLANCO, (nave_x, nave_y), 3)
     pygame.draw.line(pantalla, AZUL, (nave_x - 8, nave_y + 10), (nave_x - 19, nave_y + 20), 2)
-
-    # Configuración de la tripulación.
+    # Configuracion de la tripulacion.
     panel_tripulacion = pygame.Rect(640, 276, 568, 332)
     pygame.draw.rect(pantalla, (8, 18, 35), panel_tripulacion, border_radius=16)
     pygame.draw.rect(pantalla, BORDE, panel_tripulacion, 1, border_radius=16)
@@ -3672,8 +3592,7 @@ def dibujar_menu(mouse, tiempo):
         pygame.draw.rect(pantalla, (15, 29, 48), tecla, border_radius=7)
         pygame.draw.rect(pantalla, mezclar(BORDE, colores[i], 0.35), tecla, 1, border_radius=7)
         texto(TECLAS_TEXTO[i], fuente_mini_b, SUAVE, tecla.center, centro=True, sombra=False)
-
-    # Selección de jugadores: las mismas zonas se usan para clic y teclas 1-4.
+    # Seleccion de jugadores
     texto("CONFIGURA TU TRIPULACIÓN", fuente_mini_b, AMARILLO, (72, 286), sombra=False)
     texto("Selecciona el número de jugadores", fuente_mini, APAGADO, (72, 310), sombra=False)
     for i, boton in enumerate(botones_menu):
@@ -3700,7 +3619,6 @@ def dibujar_menu(mouse, tiempo):
           (166, 648), sombra=False)
     texto("1-4: elegir tripulación   ·   F11: pantalla completa", fuente_mini, APAGADO,
           (1208, 684), derecha=True, sombra=False)
-
 
 def dibujar_resultado(tiempo, exito):
     """Dibuja el desenlace de victoria o fracaso y el estado del récord."""
@@ -3811,7 +3729,6 @@ def dibujar_pausa(mouse, tiempo):
     texto("ESC  CONTINUAR     ·     M  VOLVER AL MENÚ",
           fuente_mini, APAGADO, (panel.centerx, panel.bottom - 13), centro=True, sombra=False)
 
-
 def volver_al_menu_desde_pausa():
     """Descarta los datos de la tripulación y regresa al menú principal."""
     global estado, formulario
@@ -3820,24 +3737,15 @@ def volver_al_menu_desde_pausa():
     jugadores.clear()
     alertas.clear()
     particulas.clear()
-
-
-# ====================
 # BUCLE PRINCIPAL
-# ====================
-
 def main():
     """Ejecuta el bucle principal de eventos, simulación y renderizado."""
     global estado, tiempo_pausa
     while True:
-        # Limita el paso de tiempo para que una pausa del sistema no provoque
-        # saltos grandes en el movimiento, los recursos o las animaciones.
         dt = min(clock.tick(60) / 1000, 0.05)
         tiempo = pygame.time.get_ticks() / 1000
         mouse = convertir_mouse(pygame.mouse.get_pos())
 
-        # La entrada depende de la pantalla actual: menú, juego, mapa, pausa,
-        # formulario o resultado final.
         for evento in pygame.event.get():
             if evento.type == pygame.QUIT:
                 pygame.quit()
@@ -3933,12 +3841,9 @@ def main():
                     jugadores.clear()
                     particulas.clear()
 
-        # El juego se congela en pausa y en el mapa, pero el vuelo continúa
-        # durante el formulario, como indican las reglas de la misión.
         if estado not in ("pausa", "mapa"):
             actualizar_efectos(dt)
 
-        # Actualiza movimiento, consumibles y formularios según el modo actual.
         if estado in ("juego", "formulario"):
             if estado == "juego":
                 teclas = pygame.key.get_pressed()
@@ -3954,8 +3859,6 @@ def main():
             else:
                 actualizar_formulario(dt)
 
-        # Cada estado elige su composición visual; juego y formulario comparten
-        # el mapa/HUD y solo añaden la capa interactiva correspondiente.
         if estado == "menu":
             dibujar_menu(mouse, tiempo)
         elif estado == "ficha":
@@ -3994,16 +3897,11 @@ def main():
         elif estado == "fallo":
             dibujar_resultado(tiempo, False)
 
-        # El estado puede cambiar durante las actualizaciones de este mismo
-        # fotograma, por ejemplo al completar una misión o agotar un recurso.
         if estado in ("menu", "final", "fallo"):
             dibujar_particulas()
         presentar_pantalla()
 
-
-# Banco de preguntas integrado
 BANCO = [
-    # 1 · «Houston, tenemos un problema» (55 h 55 min 4 s)
     [
         ("¿A qué hora de vuelo ocurrió el accidente?", "55 h 55 min 4 s",
          ["61 h 30 min", "76 h 42 min"],
@@ -4023,7 +3921,7 @@ BANCO = [
          ["Presión de cabina y Subtensión del Bus A", "Fallo del ordenador y de la Antena de Alta Ganancia"],
          "Fueron luces de alarma general y de un bus eléctrico de corriente continua."),
     ],
-    # 2 · Buses y celdas de combustible
+
     [
         ("¿Qué marcaba el bus principal A de CC en lugar de los 27 voltios habituales?", "25,5 voltios",
          ["27 voltios", "0 voltios"],
@@ -4042,7 +3940,7 @@ BANCO = [
          ["Reiniciar el ordenador principal", "Encender el módulo lunar"],
          "La acción apuntaba a la fuente de energía de los buses."),
     ],
-    # 3 · Proteger los consumibles
+
     [
         ("El LM abastecía a dos tripulantes durante dos días. ¿Qué debía hacer ahora?",
          "Abastecer a tres tripulantes durante cuatro días",
@@ -4064,7 +3962,7 @@ BANCO = [
          ["El tanque 1 vacío y el tanque 2 casi lleno", "Ambos tanques casi llenos"],
          "Recuerda qué tanque marcó cantidad cero según Lovell."),
     ],
-    # 4 · Activar el módulo lunar Aquarius
+
     [
         ("¿Cuánta energía le quedaba a Odyssey cuando se activó el módulo lunar?", "15 minutos",
          ["90 minutos", "Dos horas"],
@@ -4085,7 +3983,7 @@ BANCO = [
          ["Descartar el LM por dañado", "Usar el LM solo para alunizar"],
          "El LM parecía no verse afectado por el accidente."),
     ],
-    # 5 · Volver al retorno libre
+
     [
         ("¿Qué motor se usó para volver a la trayectoria de retorno libre?", "El DPS del módulo lunar",
          ["El SPS del Módulo de Servicio", "Los propulsores RCS"],
@@ -4105,7 +4003,7 @@ BANCO = [
          ["La Luna bloquearía las comunicaciones", "El módulo lunar no soportaría el impacto"],
          "Piensa en la logística de recuperación y en los consumibles."),
     ],
-    # 6 · Relevos en el Control de Misión
+
     [
         ("¿Cómo describió Kraft la situación en la conferencia de prensa?",
          "«La situación más grave que jamás hayamos tenido en vuelos espaciales tripulados»",
@@ -4128,7 +4026,7 @@ BANCO = [
          ["Se fue a casa a descansar como de costumbre", "Dejó la sala de control sin relevo"],
          "Normalmente hacían otra cosa, pero esa noche fue una excepción."),
     ],
-    # 7 · Tras la cara oculta de la Luna
+
     [
         ("¿Qué récord establecieron Lovell, Swigert y Haise?",
          "Los viajeros espaciales humanos más alejados de la Tierra",
@@ -4147,7 +4045,7 @@ BANCO = [
          ["Dos horas", "Cinco horas y media"],
          "Fue un corte breve y previsto al quedar la Luna entre la nave y la Tierra."),
     ],
-    # 8 · Encendido PC+2
+
     [
         ("¿Qué significa PC+2?", "Un encendido dos horas después del pericintio",
          ["La segunda corrección de curso", "El plan de contingencia número 2"],
@@ -4170,7 +4068,7 @@ BANCO = [
          ["Se perdió la señal de radio", "Se agotó el agua potable"],
          "Sin equipos electrónicos funcionando, faltaba una fuente de calor."),
     ],
-    # 9 · Un cuadrado en un agujero redondo
+
     [
         ("¿Qué problema debía resolver el equipo de Ed Smylie?",
          "Adaptar cartuchos cuadrados de LiOH a un sistema de cartuchos redondos",
@@ -4193,7 +4091,7 @@ BANCO = [
          ["Haise y Lovell", "Haise y Swigert"],
          "Revisa quién de los tres astronautas no participó en esa tarea."),
     ],
-    # 10 · Reactivar Odyssey para la reentrada
+
     [
         ("¿Cuántos interruptores y disyuntores había que configurar en Odyssey?", "417",
          ["104", "1.024"],
@@ -4213,7 +4111,7 @@ BANCO = [
          ["Charles M. Duke", "Jack R. Lousma"],
          "Uno de esos nombres volvió a la consola más tarde, y otro lo hizo solo por un breve tiempo."),
     ],
-    # 11 · Corrección final a ojo
+
     [
         ("¿Cuánto duró el encendido DPS a las 105 h 18 min?", "14,8 segundos",
          ["34 segundos", "4 minutos y 24 segundos"],
@@ -4235,7 +4133,7 @@ BANCO = [
          ["Joseph P. Kerwin", "Vance D. Brand"],
          "Había ocupado esa consola antes, en la primera parte de la crisis."),
     ],
-    # 12 · Guardia y control térmico
+
     [
         ("¿Qué es el PTC?", "Control Térmico Pasivo: girar la nave para repartir las temperaturas",
          ["Un propulsor de corrección de trayectoria", "Un sistema de comunicaciones de respaldo"],
@@ -8712,3 +8610,4 @@ def dibujar_computadora_central(tiempo):
 
 if __name__ == "__main__":
     main()
+    
