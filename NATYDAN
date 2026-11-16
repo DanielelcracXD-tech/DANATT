@@ -64,6 +64,7 @@ pygame.display.set_caption("Apollo 13")
 clock = pygame.time.Clock()
 
 DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": -0.29}  
+RECUPERA = 22.0
 PENAL = 6.0           
 TASA_HAMBRE = 0.10    
 TASA_SED = 0.14        
