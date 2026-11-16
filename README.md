@@ -1,6 +1,6 @@
 # DANATT
 
-The code of the game is "nattyjuego.py", the .mp3 files are some audios that we added to the game.
+The code of the game is "NATYDAN.py", the .mp3 files are some audios that we added to the game.
 
 The game is made by Daniel Tapia Valencia and Nataly Rodriguez Rosas.
 
