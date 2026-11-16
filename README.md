@@ -2,7 +2,7 @@
 
 The code of the game is "nattyjuego.py", the .mp3 files are some audios that we added to the game.
 
-The game is made by Daniel Tapia Valencia and Natalia Rodriguez Rosas.
+The game is made by Daniel Tapia Valencia and Nataly Rodriguez Rosas.
 
 The game is about solving missions, try to survive to some random events, Admin the resources and learn about what happene in the "Apollo 13" mission.
 
