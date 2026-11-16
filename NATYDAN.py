@@ -1,11 +1,12 @@
-import math
 import json
+import math
+import os
 import random
 import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-import os
+
 import pygame
 
 os.chdir(Path(__file__).resolve().parent)
@@ -13,9 +14,11 @@ os.chdir(Path(__file__).resolve().parent)
 pygame.init()
 pygame.mixer.init()
 
+
 class _Silencio:
     def play(self, *a, **k): pass
     def set_volume(self, *a): pass
+
 
 def _cargar_sonido(ruta):
     try:
@@ -45,11 +48,11 @@ superficie_escalada = None
 pygame.display.set_caption("Apollo 13")
 clock = pygame.time.Clock()
 
-DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": -0.29}  
+DRENAJE = {"energia": 0.30, "oxigeno": 0.28, "co2": -0.29}
 RECUPERA = 22.0
-PENAL = 6.0           
-TASA_HAMBRE = 0.10    
-TASA_SED = 0.14        
+PENAL = 6.0
+TASA_HAMBRE = 0.10
+TASA_SED = 0.14
 INTERVALO_EJERCICIO = 90.0
 DURACION_EJERCICIO = 5.0
 AVISO_EJERCICIO = 3.0
@@ -60,7 +63,7 @@ ALIMENTO_POR_TRIPULANTE = 5
 AGUA_POR_TRIPULANTE = 7
 VENDAJES_POR_TRIPULANTE = 2
 BOTIQUINES_POR_TRIPULANTE = 1
-EVENTO_MIN, EVENTO_MAX = 28.0, 50.0   
+EVENTO_MIN, EVENTO_MAX = 28.0, 50.0
 OBJETIVO_URGENCIA = 60.0
 PUNTOS_BASE_MISION = 1000
 PUNTOS_BONO_SEGUNDO = 10
@@ -69,6 +72,7 @@ ARCHIVO_PUNTUACIONES = Path(__file__).resolve().with_name("puntuaciones_apollo13
 
 sacudida = 0.0
 flash_rojo = 0.0
+
 
 def cambiar_modo_pantalla():
     """Alterna entre pantalla completa y ventana redimensionable."""
@@ -80,6 +84,7 @@ def cambiar_modo_pantalla():
         ventana = pygame.display.set_mode((ANCHO, ALTO), pygame.RESIZABLE)
     superficie_escalada = None
 
+
 def _vista():
     """Calcula escala y márgenes para ajustar la resolución lógica a la ventana."""
     ancho_v, alto_v = ventana.get_size()
@@ -88,10 +93,12 @@ def _vista():
     h = max(1, round(ALTO * escala))
     return escala, w, h, (ancho_v - w) // 2, (alto_v - h) // 2
 
+
 def convertir_mouse(posicion):
     """Convierte una posición de pantalla real a las coordenadas del juego."""
     escala, _, _, ox, oy = _vista()
     return round((posicion[0] - ox) / escala), round((posicion[1] - oy) / escala)
+
 
 def presentar_pantalla():
     """Escala y presenta el lienzo lógico, aplicando sacudida si hay un impacto."""
@@ -111,6 +118,7 @@ def presentar_pantalla():
         imagen = superficie_escalada
     ventana.blit(imagen, (ox + dx, oy + dy))
     pygame.display.flip()
+
 
 FONDO = (5, 10, 23)
 BLANCO = (239, 245, 255)
@@ -266,6 +274,7 @@ def dibujar_particulas():
         pygame.draw.circle(pantalla, mezclar((6, 12, 24), p["c"], k), (int(p["x"]), int(p["y"])),
                            max(1, int(p["r"] * k + 0.5)))
 
+
 salas = {
     "ENERGIA": pygame.Rect(470, 350, 450, 270),
     "OXIGENO": pygame.Rect(1120, 350, 450, 270),
@@ -362,7 +371,6 @@ PUERTAS_EXTRA = (
 ZONAS = list(salas.values()) + [PASILLO] + PASILLOS_EXTRA + PUERTAS + list(PUERTAS_EXTRA)
 GROSOR_PARED = 6
 
-#FUNCIONES
 
 def punto_caminable(px, py):
     """Indica si un punto pertenece a una sala, pasillo o puerta transitable."""
@@ -446,7 +454,6 @@ def _sprite_tripulante(color, fase_indice, moviendo):
     return pygame.transform.smoothscale(sprite, (34, 44)).convert_alpha()
 
 
-# JUGADOR
 
 class Jugador:
     """Representa a un tripulante, sus necesidades, salud, movimiento y aspecto."""
@@ -1067,7 +1074,6 @@ JUSTIFICACIONES = {
         "La pregunta se refiere al relevo a bordo en ese momento; no confundas ese turno con la guardia anterior.",
 }
 
-# ESTADO DE PARTIDA
 
 estado = "menu"
 tiempo_pausa = 0.0
@@ -1078,7 +1084,6 @@ cache_forms = {}
 causa_fallo = "energia"
 
 recursos = {"energia": 100.0, "oxigeno": 100.0, "co2": 0.0}
-
 recursos_vis = dict(recursos)
 suministros = {"comida": 0, "agua": 0, "vendajes": 0, "botiquines": 0}
 limites_suministros = dict(suministros)
@@ -1131,9 +1136,11 @@ MOTAS_CORREDOR = [
     for _ in range(20)
 ]
 
+
 def fmt_puntos(valor):
     """Muestra una puntuación entera usando puntos como separadores de miles."""
     return f"{int(valor):,}".replace(",", ".")
+
 
 def cargar_puntuaciones():
     """Carga y valida el archivo local de récords antes de mostrarlos."""
@@ -1205,8 +1212,6 @@ cargar_puntuaciones()
 
 def asignar_misiones(total):
     """Cada jugador recibe exactamente len(misiones)/total misiones."""
-    # Primero se asignan las misiones al rol coincidente; las restantes se reparten
-    # según afinidades, respetando el mismo cupo para cada participante.
     presentes = roles[:total]
     cupo = len(misiones) // total
     resultado = [None] * len(misiones)
@@ -1238,7 +1243,6 @@ def crear_jugadores(total):
     formularios_multijugador.clear()
     temporizadores_multijugador.clear()
     alarmas_urgencia_multijugador.clear()
-    # Al iniciar una partida, todos los medidores vuelven a sus valores iniciales.
     for k in recursos:
         if k == "co2":
             recursos[k] = 0.0
@@ -1470,10 +1474,13 @@ def interactuar_servicios(jugador):
         return True
     return False
 
+
+
 def lanzar_alerta(cadena, color, dur=4.0):
     """Añade una alerta temporal y limita la lista a las tres más recientes."""
     alertas.append({"texto": cadena, "color": color, "t": 0.0, "dur": dur})
     del alertas[:-3]
+
 
 def lanzar_evento():
     """Selecciona un incidente aleatorio, aplica su efecto y activa señales visuales."""
@@ -1483,6 +1490,7 @@ def lanzar_evento():
     lanzar_alerta(f"INCIDENTE: {cadena}  (-{dano} % {RECURSOS_INFO[rec][0].lower()})", ROJO_CLARO, 5.5)
     sacudida = 0.5
     flash_rojo = 0.6
+
 
 def actualizar_efectos(dt):
     """Reduce los temporizadores de efectos y actualiza alertas y partículas."""
@@ -1498,6 +1506,7 @@ def actualizar_efectos(dt):
         a["t"] += dt
     alertas[:] = [a for a in alertas if a["t"] < a["dur"]]
     actualizar_particulas(dt)
+
 
 def actualizar_recursos(dt):
     """Actualiza sistemas, ejercicio, necesidades, incidentes y condiciones de fracaso."""
@@ -1583,6 +1592,7 @@ def actualizar_recursos(dt):
 
 PW, PH = 980, 690
 PX, PY = (ANCHO - PW) // 2, (ALTO - PH) // 2
+
 
 def sortear_preguntas(idx):
     """3 preguntas al azar del banco: al menos una de la historia y una de CML."""
@@ -1763,6 +1773,7 @@ def finalizar_exito():
     if mision_actual % 4 == 0:
         lanzar_alerta(f"El concepto alcanzó CML {cml_actual()}: {NOMBRES_CML[cml_actual()]}", AZUL, 5.0)
 
+
 def finalizar_exito_multijugador(nombre_jugador):
     """Aplica la recompensa de un jugador y actualiza el progreso compartido."""
     global estado, puntuacion, puesto_puntuacion
@@ -1774,7 +1785,6 @@ def finalizar_exito_multijugador(nombre_jugador):
     jugador = next((j for j in jugadores if j.nombre == nombre_jugador), None)
     sala = salas[m["sala"]]
     rec = m["recurso"]
-
     recursos[rec] = min(100.0, recursos[rec] + RECUPERA)
     duracion = temporizadores_multijugador[nombre_jugador]
     bono = max(0, int((OBJETIVO_URGENCIA - duracion) * PUNTOS_BONO_SEGUNDO))
@@ -1871,7 +1881,7 @@ def manejar_tecla_multijugador(tecla):
                 return
     _manejar_tecla_multijugador_central_base(tecla)
 
-# DIBUJO
+
 
 def dibujar_fondo(tiempo):
     """Pinta el fondo espacial animado con estrellas y meteoros."""
@@ -1880,12 +1890,13 @@ def dibujar_fondo(tiempo):
         brillo = 90 + int(100 * (0.5 + 0.5 * math.sin(tiempo * 1.6 + f)))
         px = int((x - tiempo * 3 * r) % ANCHO)
         pygame.draw.circle(pantalla, (brillo, min(235, brillo + 10), 255), (px, y), r)
-    for k, (sx, sy) in enumerate(METEOROS):  # estrellas fugaces
+    for k, (sx, sy) in enumerate(METEOROS):
         p = (tiempo * 0.17 + k * 0.37) % 1.0
         if p < 0.22:
             q = p / 0.22
             x, y = sx + q * 280, sy + q * 120
             pygame.draw.line(pantalla, mezclar(FONDO, BLANCO, 1 - q), (x, y), (x - 46, y - 20), 2)
+
 
 def dibujar_paredes():
     """Dibuja los suelos, paredes y obstáculos del interior de la nave."""
@@ -2009,6 +2020,7 @@ def dibujar_icono_sala(nombre, centro, color):
                             math.radians(215), math.radians(325), 2)
         pygame.draw.line(pantalla, color, (cx - 16, cy + 13), (cx + 16, cy + 13), 2)
 
+
 def dibujar_equipo_sala(nombre, sala, color, tiempo):
     """Dibuja una consola de sala con indicadores animados según su función."""
     equipo = pygame.Rect(sala.right - 76, sala.bottom - 49, 62, 38)
@@ -2128,6 +2140,7 @@ def dibujar_equipo_sala(nombre, sala, color, tiempo):
                            centro_luz, 3 if encendida else 2)
         if encendida:
             pygame.draw.circle(pantalla, luz, centro_luz, 4, 1)
+
 
 def dibujar_rack_tecnico(sala, dx, dy, ancho, alto, color, modulos=3):
     """Dibuja un gabinete modular con indicadores y paneles de estado."""
@@ -2528,6 +2541,7 @@ def dibujar_detalles_sala(nombre, sala, color, tiempo):
         pygame.draw.rect(pantalla, (19, 33, 47), (sala.x + 80, sala.y + 77, 42, 9), border_radius=2)
         pygame.draw.circle(pantalla, VERDE, (sala.x + 144, sala.y + 82), 3)
 
+
 def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
     """Representa un módulo técnico decorativo según el tipo de equipo."""
     pygame.draw.rect(pantalla, (17, 31, 47), rect, border_radius=12)
@@ -2567,6 +2581,7 @@ def dibujar_modulo_auxiliar(rect, nombre, tipo, color):
             pygame.draw.line(pantalla, color, (rect.centerx, y + 3),
                              (rect.centerx, y + 12), 2)
 
+
 def dibujar_casco_anexo():
     """Traza el contorno exterior de la nave y los paneles de su fuselaje."""
     ala_superior = [(2030, 190), (2310, 55), (2260, 325), (2160, 410)]
@@ -2597,6 +2612,7 @@ def dibujar_casco_anexo():
     for x in (480, 560, 2160, 2240):
         for y in (210, 126, 1170):
             pygame.draw.circle(pantalla, (71, 96, 119), (x, y), 2)
+
 
 def dibujar_nave(tiempo):
     """Compone el mapa completo: casco, pasillos, salas, consolas y destinos."""
@@ -2632,7 +2648,6 @@ def dibujar_nave(tiempo):
             (2488, y - 5), (2488, y + 5), (2500 + int(largo_pluma * 0.65), y),
         ])
 
-    # Paneles de presión y cableado en el corredor central.
     pygame.draw.line(pantalla, (34, 54, 75), (PASILLO.x + 12, PASILLO.y + 8),
                      (PASILLO.right - 12, PASILLO.y + 8), 1)
     pygame.draw.line(pantalla, (34, 54, 75), (PASILLO.x + 12, PASILLO.bottom - 8),
@@ -2704,7 +2719,6 @@ def dibujar_nave(tiempo):
                 for luz in range(3):
                     tono = color if (tiempo * 2 + modulo + luz) % 3 < 1 else (59, 78, 96)
                     pygame.draw.circle(pantalla, tono, (x + 14 + luz * 14, consola_aux.bottom - 5), 2)
-        # Consola mural compacta como el instrumental de cada estación.
         consola = pygame.Rect(sala.x + 14, sala.y + 54, 38, 31)
         pygame.draw.rect(pantalla, (11, 23, 39), consola, border_radius=4)
         pygame.draw.rect(pantalla, (39, 61, 83), consola, 1, border_radius=4)
@@ -2715,7 +2729,6 @@ def dibujar_nave(tiempo):
             pygame.draw.circle(pantalla, color if luz == 0 and activa else (67, 91, 112),
                                (consola.x + 9 + luz * 10, consola.y + 23), 2)
         if activa:
-            # ondas que se expanden desde el centro de la sala
             for k in range(2):
                 q = (tiempo * 0.55 + k * 0.5) % 1.0
                 pygame.draw.circle(pantalla, mezclar((17, 32, 52), color, (1 - q) * 0.5),
@@ -2856,10 +2869,12 @@ def dibujar_region_mapa(camara, zoom, vista):
     finally:
         pantalla.set_clip(recorte_anterior)
 
+
 def dibujar_mapa_vista(tiempo):
     """Dibuja el mapa de cámara única usado en modo de un jugador."""
     actualizar_capa_mapa(tiempo)
     dibujar_region_mapa(camara_mapa, ZOOM_MAPA, MAPA_VISTA)
+
 
 def dibujar_mapa_multijugador(tiempo):
     """Dibuja una región de mapa y una etiqueta de destino por jugador."""
@@ -2876,6 +2891,7 @@ def dibujar_mapa_multijugador(tiempo):
         pygame.draw.circle(pantalla, jugador.color, (placa.x + 12, placa.centery), 4)
         texto(f"{indice + 1}. {jugador.nombre.upper()}  {TECLAS_TEXTO[indice]}  ·  {destino}",
               fuente_mini_b, BLANCO, (placa.x + 23, placa.y + 5), sombra=False)
+
 
 def dibujar_formularios_multijugador():
     """Superpone los formularios activos dentro de las vistas de sus jugadores."""
@@ -3045,6 +3061,7 @@ def dibujar_mapa_general(tiempo):
     texto("M  /  ESC  CERRAR MAPA", fuente_mini, APAGADO,
           (panel.right - 30, panel.bottom - 32), derecha=True, sombra=False)
 
+
 def dibujar_icono_estado(tipo, x, y, color):
     """Dibuja un icono pequeño para salud, comida o agua."""
     if tipo == "salud":
@@ -3060,6 +3077,7 @@ def dibujar_icono_estado(tipo, x, y, color):
         pygame.draw.polygon(pantalla, color, [(x + 5, y), (x + 1, y + 6),
                                                (x + 2, y + 9), (x + 5, y + 11),
                                                (x + 8, y + 9), (x + 9, y + 6)])
+
 
 def dibujar_recursos():
     """Dibuja los sistemas críticos y las reservas separadas de comida y agua."""
@@ -3089,6 +3107,7 @@ def dibujar_recursos():
         avance = max(0, min(78, int(78 * valor / maximo)))
         pygame.draw.rect(pantalla, color_texto, (x, 52, avance, 5), border_radius=2)
 
+
 def dibujar_cabecera():
     """Dibuja el HUD superior con MET, CML, puntuación y consumibles."""
     paneles = (pygame.Rect(18, 14, 272, 112), pygame.Rect(798, 14, 464, 68))
@@ -3113,6 +3132,7 @@ def dibujar_cabecera():
             color = BORDE
         pygame.draw.rect(pantalla, color, (142 + i * 11, 117, 8, 3), border_radius=2)
     dibujar_recursos()
+
 
 def mostrar_mision():
     """Muestra el resumen de misión individual o el progreso compartido."""
@@ -3198,6 +3218,7 @@ def mostrar_mision():
     texto(f"+{int(RECUPERA)}% {nombre_rec.lower()}", fuente_mini, color_rec,
           (tarjeta.right - 14, tarjeta.y + 98), derecha=True, sombra=False)
 
+
 def dibujar_alertas():
     """Presenta alertas temporales con animación de entrada y salida."""
     y = 132
@@ -3214,6 +3235,7 @@ def dibujar_alertas():
             y += 17
         pygame.draw.line(pantalla, col, (ANCHO - 28, y - 17 * len(lineas)), (ANCHO - 28, y - 3), 2)
         y += 8
+
 
 def dibujar_tripulacion():
     """Dibuja la salud y necesidades de cada jugador junto a sus controles."""
@@ -3284,7 +3306,9 @@ def dibujar_flash():
         s = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
         s.fill((255, 40, 40, int(70 * flash_rojo / 0.6)))
         pantalla.blit(s, (0, 0))
-# FORMULARIO
+
+
+
 def _alto_campos(campos, ancho, pad, gap):
     """Estima el alto necesario para dibujar todas las preguntas y opciones."""
     total = 0
@@ -3328,6 +3352,7 @@ def dibujar_formulario(mouse, dt):
     lienzo.set_alpha(int(255 * ap))
     pantalla.blit(lienzo, (ox, oy))
 
+
 def _contenido_formulario(f, m, color_sala, t, dt, ml):
     """Dibuja el contenido del formulario y actualiza sus zonas interactivas."""
     campos = f["campos"]
@@ -3336,7 +3361,6 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
     for cx, cy, sx, sy in ((10, 10, 1, 1), (PW - 10, 10, -1, 1), (10, PH - 10, 1, -1), (PW - 10, PH - 10, -1, -1)):
         pygame.draw.line(pantalla, color_sala, (cx, cy), (cx + 24 * sx, cy), 3)
         pygame.draw.line(pantalla, color_sala, (cx, cy), (cx, cy + 24 * sy), 3)
-   
     rect_alpha(pantalla, color_sala, pygame.Rect(14, int((t * 140) % (PH - 40)) + 18, PW - 28, 2), 22, 1)
 
     texto("FORMULARIO DE MISIÓN", fuente_mini_b, AMARILLO, (34, 18), sombra=False)
@@ -3469,7 +3493,7 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
                 texto(linea, fuente_o, col_o, (rect.x + 44, rect.y + pad // 2 + k * 19), sombra=False)
             f["zonas"].append((i, j, rect))
             yy += h + 5
-        if c["bloqueado"]:  
+        if c["bloqueado"]:
             cx, cy = x0 + ancho - 70, y_bloque + 11
             pygame.draw.lines(pantalla, VERDE, False, [(cx - 7, cy), (cx - 2, cy + 6), (cx + 8, cy - 7)], 3)
         elif c["error"]:
@@ -3523,7 +3547,9 @@ def _contenido_formulario(f, m, color_sala, t, dt, ml):
               sombra=False)
         texto(f"+{int(RECUPERA)} % {nombre_rec}", fuente, mezclar(PANEL_BG, col_rec, q3), (cx, cy + 142),
               centro=True, sombra=False)
-# MENÚ Y PANTALLAS FINALES
+
+
+
 def dibujar_menu(mouse, tiempo):
     """Dibuja el menú inicial, récords y opciones de tamaño de tripulación."""
     dibujar_fondo(tiempo)
@@ -3544,7 +3570,6 @@ def dibujar_menu(mouse, tiempo):
           fuente_o, APAGADO,
           (74, 253), sombra=False)
 
-    # Ilustración orbital y panel de estado de la misión.
     panel_estado = pygame.Rect(780, 68, 428, 174)
     pygame.draw.rect(pantalla, (8, 18, 35), panel_estado, border_radius=16)
     pygame.draw.rect(pantalla, BORDE, panel_estado, 1, border_radius=16)
@@ -3570,7 +3595,7 @@ def dibujar_menu(mouse, tiempo):
     pygame.draw.circle(pantalla, AZUL, (nave_x, nave_y), 7)
     pygame.draw.circle(pantalla, BLANCO, (nave_x, nave_y), 3)
     pygame.draw.line(pantalla, AZUL, (nave_x - 8, nave_y + 10), (nave_x - 19, nave_y + 20), 2)
-    # Configuracion de la tripulacion.
+
     panel_tripulacion = pygame.Rect(640, 276, 568, 332)
     pygame.draw.rect(pantalla, (8, 18, 35), panel_tripulacion, border_radius=16)
     pygame.draw.rect(pantalla, BORDE, panel_tripulacion, 1, border_radius=16)
@@ -3592,7 +3617,7 @@ def dibujar_menu(mouse, tiempo):
         pygame.draw.rect(pantalla, (15, 29, 48), tecla, border_radius=7)
         pygame.draw.rect(pantalla, mezclar(BORDE, colores[i], 0.35), tecla, 1, border_radius=7)
         texto(TECLAS_TEXTO[i], fuente_mini_b, SUAVE, tecla.center, centro=True, sombra=False)
-    # Seleccion de jugadores
+
     texto("CONFIGURA TU TRIPULACIÓN", fuente_mini_b, AMARILLO, (72, 286), sombra=False)
     texto("Selecciona el número de jugadores", fuente_mini, APAGADO, (72, 310), sombra=False)
     for i, boton in enumerate(botones_menu):
@@ -3619,6 +3644,7 @@ def dibujar_menu(mouse, tiempo):
           (166, 648), sombra=False)
     texto("1-4: elegir tripulación   ·   F11: pantalla completa", fuente_mini, APAGADO,
           (1208, 684), derecha=True, sombra=False)
+
 
 def dibujar_resultado(tiempo, exito):
     """Dibuja el desenlace de victoria o fracaso y el estado del récord."""
@@ -3729,6 +3755,7 @@ def dibujar_pausa(mouse, tiempo):
     texto("ESC  CONTINUAR     ·     M  VOLVER AL MENÚ",
           fuente_mini, APAGADO, (panel.centerx, panel.bottom - 13), centro=True, sombra=False)
 
+
 def volver_al_menu_desde_pausa():
     """Descarta los datos de la tripulación y regresa al menú principal."""
     global estado, formulario
@@ -3737,7 +3764,9 @@ def volver_al_menu_desde_pausa():
     jugadores.clear()
     alertas.clear()
     particulas.clear()
-# BUCLE PRINCIPAL
+
+
+
 def main():
     """Ejecuta el bucle principal de eventos, simulación y renderizado."""
     global estado, tiempo_pausa
@@ -3901,6 +3930,7 @@ def main():
             dibujar_particulas()
         presentar_pantalla()
 
+
 BANCO = [
     [
         ("¿A qué hora de vuelo ocurrió el accidente?", "55 h 55 min 4 s",
@@ -3921,7 +3951,6 @@ BANCO = [
          ["Presión de cabina y Subtensión del Bus A", "Fallo del ordenador y de la Antena de Alta Ganancia"],
          "Fueron luces de alarma general y de un bus eléctrico de corriente continua."),
     ],
-
     [
         ("¿Qué marcaba el bus principal A de CC en lugar de los 27 voltios habituales?", "25,5 voltios",
          ["27 voltios", "0 voltios"],
@@ -3940,7 +3969,6 @@ BANCO = [
          ["Reiniciar el ordenador principal", "Encender el módulo lunar"],
          "La acción apuntaba a la fuente de energía de los buses."),
     ],
-
     [
         ("El LM abastecía a dos tripulantes durante dos días. ¿Qué debía hacer ahora?",
          "Abastecer a tres tripulantes durante cuatro días",
@@ -3962,7 +3990,6 @@ BANCO = [
          ["El tanque 1 vacío y el tanque 2 casi lleno", "Ambos tanques casi llenos"],
          "Recuerda qué tanque marcó cantidad cero según Lovell."),
     ],
-
     [
         ("¿Cuánta energía le quedaba a Odyssey cuando se activó el módulo lunar?", "15 minutos",
          ["90 minutos", "Dos horas"],
@@ -3983,7 +4010,6 @@ BANCO = [
          ["Descartar el LM por dañado", "Usar el LM solo para alunizar"],
          "El LM parecía no verse afectado por el accidente."),
     ],
-
     [
         ("¿Qué motor se usó para volver a la trayectoria de retorno libre?", "El DPS del módulo lunar",
          ["El SPS del Módulo de Servicio", "Los propulsores RCS"],
@@ -4003,7 +4029,6 @@ BANCO = [
          ["La Luna bloquearía las comunicaciones", "El módulo lunar no soportaría el impacto"],
          "Piensa en la logística de recuperación y en los consumibles."),
     ],
-
     [
         ("¿Cómo describió Kraft la situación en la conferencia de prensa?",
          "«La situación más grave que jamás hayamos tenido en vuelos espaciales tripulados»",
@@ -4026,7 +4051,6 @@ BANCO = [
          ["Se fue a casa a descansar como de costumbre", "Dejó la sala de control sin relevo"],
          "Normalmente hacían otra cosa, pero esa noche fue una excepción."),
     ],
-
     [
         ("¿Qué récord establecieron Lovell, Swigert y Haise?",
          "Los viajeros espaciales humanos más alejados de la Tierra",
@@ -4045,7 +4069,6 @@ BANCO = [
          ["Dos horas", "Cinco horas y media"],
          "Fue un corte breve y previsto al quedar la Luna entre la nave y la Tierra."),
     ],
-
     [
         ("¿Qué significa PC+2?", "Un encendido dos horas después del pericintio",
          ["La segunda corrección de curso", "El plan de contingencia número 2"],
@@ -4068,7 +4091,6 @@ BANCO = [
          ["Se perdió la señal de radio", "Se agotó el agua potable"],
          "Sin equipos electrónicos funcionando, faltaba una fuente de calor."),
     ],
-
     [
         ("¿Qué problema debía resolver el equipo de Ed Smylie?",
          "Adaptar cartuchos cuadrados de LiOH a un sistema de cartuchos redondos",
@@ -4091,7 +4113,6 @@ BANCO = [
          ["Haise y Lovell", "Haise y Swigert"],
          "Revisa quién de los tres astronautas no participó en esa tarea."),
     ],
-
     [
         ("¿Cuántos interruptores y disyuntores había que configurar en Odyssey?", "417",
          ["104", "1.024"],
@@ -4111,7 +4132,6 @@ BANCO = [
          ["Charles M. Duke", "Jack R. Lousma"],
          "Uno de esos nombres volvió a la consola más tarde, y otro lo hizo solo por un breve tiempo."),
     ],
-
     [
         ("¿Cuánto duró el encendido DPS a las 105 h 18 min?", "14,8 segundos",
          ["34 segundos", "4 minutos y 24 segundos"],
@@ -4133,7 +4153,6 @@ BANCO = [
          ["Joseph P. Kerwin", "Vance D. Brand"],
          "Había ocupado esa consola antes, en la primera parte de la crisis."),
     ],
-
     [
         ("¿Qué es el PTC?", "Control Térmico Pasivo: girar la nave para repartir las temperaturas",
          ["Un propulsor de corrección de trayectoria", "Un sistema de comunicaciones de respaldo"],
@@ -4973,7 +4992,6 @@ def dibujar_boton_ficha(mouse, tiempo):
         rect_alpha(pantalla, AMARILLO, boton_ficha.inflate(10, 10), 28 + 24 * (0.5 + 0.5 * math.sin(tiempo * 4)), 18)
     pygame.draw.rect(pantalla, mezclar((8, 18, 35), AMARILLO, 0.1 if hover else 0.0), boton_ficha, border_radius=14)
     pygame.draw.rect(pantalla, AMARILLO if hover else BORDE, boton_ficha, 2 if hover else 1, border_radius=14)
-    # Icono de documento.
     doc = pygame.Rect(boton_ficha.x + 18, boton_ficha.y + 10, 22, 26)
     pygame.draw.rect(pantalla, AMARILLO if hover else SUAVE, doc, 2, border_radius=3)
     for k in range(3):
@@ -5027,7 +5045,6 @@ def dibujar_ficha(mouse, tiempo):
     texto(FICHA_FUENTE, fuente_micro, APAGADO, (panel.centerx + 20, panel.bottom - 40), centro=True, sombra=False)
     texto("← →  cambiar página   ·   ESC  cerrar", fuente_micro, APAGADO,
           (panel.centerx + 20, panel.bottom - 24), centro=True, sombra=False)
-# NIVELES
 dificultad = "dificil"
 dificultad_pendiente = None
 tripulacion_pendiente = 1
@@ -6013,10 +6030,10 @@ def _franja_sin_puertas(franja):
     return [p for p in piezas if p.width > 0]
 
 MUROS_BORDE = []
-for _n in ("ENERGIA", "OXIGENO", "NAVEGACION"):          # tocan el pasillo superior (y=350)
+for _n in ("ENERGIA", "OXIGENO", "NAVEGACION"):
     _s = salas[_n]
     MUROS_BORDE += _franja_sin_puertas(pygame.Rect(_s.x, _s.y - 4, _s.width, 8))
-for _n in ("COMEDOR", "GIMNASIO", "ALMACEN", "TALLER"):   # tocan el pasillo inferior (y=1070)
+for _n in ("COMEDOR", "GIMNASIO", "ALMACEN", "TALLER"):
     _s = salas[_n]
     MUROS_BORDE += _franja_sin_puertas(pygame.Rect(_s.x, _s.y - 4, _s.width, 8))
 
@@ -6334,7 +6351,6 @@ def dibujar_diseno(dis, foco, listo, campos_j, val, mensaje, t):
         texto(etiqueta_listo, fuente_mini_b, (12, 24, 34) if hover else (BLANCO if val["ok"] else APAGADO),
               boton_listo.center, centro=True, sombra=False)
 
-    # Medidores en vivo (izquierda).
     texto("BALANCE DE MISIÓN", fuente_mini_b, AMARILLO, (24, 442), sombra=False)
     filas = [
         ("Masa", val["masa"] / max(1, val["limite_masa"]), val["masa"] <= val["limite_masa"],
@@ -6359,7 +6375,6 @@ def dibujar_diseno(dis, foco, listo, campos_j, val, mensaje, t):
         pygame.draw.rect(pantalla, (20, 34, 54), (24, y + 18, 306, 5), border_radius=2)
         pygame.draw.rect(pantalla, col, (24, y + 18, int(306 * max(0.0, min(1.0, frac))), 5), border_radius=2)
 
-    # Validaciones con su explicación (derecha).
     texto("VALIDACIÓN Y EXPLICACIÓN", fuente_mini_b, AMARILLO, (400, 442), sombra=False)
     y = 466
     for ok, txt, porque in val["checks"]:
@@ -6416,7 +6431,7 @@ def pantalla_diseno():
             for i in range(n):
                 mapas = [(controles[i], TECLAS_ACEPTAR[i])]
                 if n == 1:
-                    mapas.append((controles[1], TECLAS_ACEPTAR[1]))   # un solo jugador: también flechas + Enter
+                    mapas.append((controles[1], TECLAS_ACEPTAR[1]))
                 for ctrl, aceptar in mapas:
                     cs = campos_j[i]
                     if k == ctrl[0]:
@@ -6425,7 +6440,7 @@ def pantalla_diseno():
                         foco[i] = (foco[i] + 1) % len(cs)
                     elif k in (ctrl[2], ctrl[3]):
                         dis_cambiar(dis, cs[foco[i]][0], 1 if k == ctrl[3] else -1)
-                        listo = [False] * n          # un cambio reabre la revisión de todo el equipo
+                        listo = [False] * n
                         mensaje = ""
                     elif k == aceptar:
                         if not listo[i] and not val["ok"]:
@@ -6764,7 +6779,7 @@ ARCHIVO_PROGRESO = Path(__file__).resolve().with_name("progreso_apollo13.json")
 ARCHIVO_BANCO_EXTRA = Path(__file__).resolve().with_name("banco_extra.json")
 ARCHIVO_BANCO_EJEMPLO = Path(__file__).resolve().with_name("banco_extra_ejemplo.json")
 
-INTERVALO_EJERCICIO = 150.0   # antes 90 s: el gimnasio era demasiado agobiante
+INTERVALO_EJERCICIO = 150.0
 
 opciones = {"volumen": 10, "reducir_movimiento": False, "texto_grande": False,
             "alto_contraste": False, "relajado": False, "tutorial_visto": False}
@@ -6931,7 +6946,6 @@ def emitir(x, y, color, n=24, vel=180, vida=0.9, r=3, grav=0.0):
         n = min(n, 3)
     _emitir_v1(x, y, color, n, vel, vida, r, grav)
 
-# Boton de opciones en el menu principal
 _dibujar_menu_v2 = dibujar_menu
 
 
@@ -7101,7 +7115,6 @@ def dis_construir_informe(victoria, bono):
     inf["razones"].append("Lección de ingeniería: " + LECCIONES.get(clave, LECCIONES["ok"]))
     return inf
 
-# 3. GLOSARIO
 
 FICHA_PAGINAS.append({
     "titulo": "Glosario", "color": VERDE,
@@ -7120,7 +7133,6 @@ FICHA_PAGINAS.append({
         ("Celda de combustible", "Combina oxígeno e hidrógeno para producir electricidad y agua."),
     ]})
 
-# 4. LOGROS
 
 logros_obtenidos = set()
 LOGROS = {
@@ -7184,7 +7196,6 @@ def actualizar_capa_mapa(tiempo):
     _actualizar_capa_v1(tiempo)
     _capa_mapa_version += 1
 
-# 6. REPETICIÓN ESPACIADA Y BANCO DE PREGUNTAS EXTERNO 
 
 falladas = {}   
 
@@ -7296,10 +7307,9 @@ def auditar_banco():
                       f"distractores: {[len(x) for x in malas]}")
     print(f"\n{sospechosas} preguntas donde la respuesta correcta es mucho más larga que los distractores.")
 
-# MINIJUEGOS 
 
 NUEVOS_MJ = ("interruptores", "adaptador", "alinear")
-MJ_POR_MISION = {8: "adaptador", 9: "interruptores", 10: "alinear"}   # índices 0-based de misiones
+MJ_POR_MISION = {8: "adaptador", 9: "interruptores", 10: "alinear"}
 ADAPTADOR_ITEMS = [("Manguera del traje", True), ("Prenda refrigerada", True), ("Bolsa de plástico", True),
                    ("Tarjeta del plan de vuelo", True), ("Cinta adhesiva", True), ("Soldador", False),
                    ("Cables del guiado", False), ("Tubo del tanque de helio", False)]
@@ -7342,12 +7352,12 @@ def iniciar_minijuego(indice, jugador=None):
     mj = minijuego
     if mj is None:
         return
-    if mj["tipo"] == "secuencia":      # la dificultad sube con el progreso
+    if mj["tipo"] == "secuencia":
         mj["sec"] = [random.randrange(4) for _ in range(4 + min(3, len(misiones_completadas) // 4))]
     tipo = MJ_POR_MISION.get(indice)
     if tipo == "interruptores":
         estados = [True] * 12
-        for i in random.sample(range(12), 6):      # parte de lo resuelto: siempre tiene solución
+        for i in random.sample(range(12), 6):
             for v in _vecinos(i):
                 estados[v] = not estados[v]
         if all(estados):
@@ -7488,7 +7498,6 @@ def dibujar_minijuego(mouse, dt):
                          border_radius=6)
         pygame.draw.rect(pantalla, BORDE, barra, 1, border_radius=6)
 
-# BUCLE PRINCIPAL FINAL
 
 def main():
     """Bucle principal: menú, opciones, tutorial, vuelo, repaso, minijuegos y resultados."""
@@ -7655,7 +7664,7 @@ def main():
                         jugadores.clear()
                         particulas.clear()
                     elif evento.key == pygame.K_d and diseno_activo is not None:
-                        elegir_dificultad(dificultad)    # rediseñar con la misma tripulación
+                        elegir_dificultad(dificultad)
 
         if estado not in congelados:
             actualizar_efectos(dt)
@@ -7740,7 +7749,6 @@ def _entrada():
         auditar_banco()
     else:
         main()
-# DISEÑOS PREDETERMINADOS (PRESETS) PARA LA FASE DE DISEÑO
 import itertools
 
 PRESET_PERFILES = [
@@ -7979,7 +7987,6 @@ def pantalla_diseno():
         dibujar_diseno(dis, foco, listo, campos_j, val, mensaje, t)
         presentar_pantalla()
 
-# ESCENARIOS CON REGLAS DE VUELO PROPIAS
 
 ESCENARIOS = {
     "apollo": {
@@ -8080,13 +8087,13 @@ def actualizar_recursos(dt):
             else:
                 lanzar_alerta("Fin del eclipse: paneles y enlace restablecidos.", VERDE, 4.0)
     elif escenario_activo == "earth":
-        op["calib"] = max(0.0, op["calib"] - DIS_CAL_PERDIDA * 1.5 * dt_e)       # se descalibra 2,5 veces más rápido
-        op["buffer"] += v["tasa_datos"] * 0.5 * dt_e                               # 1,5 veces más datos
+        op["calib"] = max(0.0, op["calib"] - DIS_CAL_PERDIDA * 1.5 * dt_e)
+        op["buffer"] += v["tasa_datos"] * 0.5 * dt_e
         if op["buffer"] > DIS_MEMORIA:
             op["perdidos"] += op["buffer"] - DIS_MEMORIA
             op["buffer"] = DIS_MEMORIA
     else:
-        op["calib"] = min(100.0, op["calib"] + DIS_CAL_PERDIDA * 0.5 * dt_e)      # la calibración dura el doble
+        op["calib"] = min(100.0, op["calib"] + DIS_CAL_PERDIDA * 0.5 * dt_e)
 
 
 _transmitir_v1 = dis_transmitir
@@ -8143,7 +8150,6 @@ def dibujar_cabecera():
         texto(f"eclipse en {faltan} s", fuente_micro, AMARILLO if faltan <= 10 else APAGADO,
               (276, 100), derecha=True, sombra=False)
 
-# FICHA NUTRICIONAL AL COMER
 
 FICHA_COMIDA_FUENTE = "Fuente: https://www.nasa.gov/"
 
@@ -8249,7 +8255,6 @@ def dibujar_repaso(tiempo):
     else:
         _dibujar_repaso_ficha_comida(tiempo)
 
-# FICHA DE EJERCICIO
 
 FICHA_EJERCICIO_FUENTE = ("Fuente:https://ciencia.nasa.gov ")
 
@@ -8327,7 +8332,6 @@ def _dibujar_ficha_ejercicio(tiempo):
     texto("¿Por qué hay que hacer ejercicio en el espacio?", fuente_mediana, BLANCO,
           (panel.x + 36, panel.y + 42), sombra=False)
 
-    # Barra de salud del tripulante.
     bx, by, bw = panel.right - 300, panel.y + 54, 264
     texto(f"SALUD DE {r['nombre'].upper()}", fuente_micro, SUAVE, (bx, by - 18), sombra=False)
     pygame.draw.rect(pantalla, (20, 34, 54), (bx, by, bw, 10), border_radius=4)
@@ -8384,7 +8388,6 @@ def dibujar_repaso(tiempo):
         _dibujar_repaso_ficha_ejercicio(tiempo)
 
 
-# COMPUTADORA CENTRAL DE CONTROL DE MISIÓN
 COMPUTADORA_CENTRAL = pygame.Rect(278, 665, 64, 42)
 ALCANCE_COMPUTADORA = pygame.Rect(235, 646, 150, 88)
 BOTON_CERRAR_CENTRAL = pygame.Rect(1068, 52, 148, 38)
@@ -8610,4 +8613,3 @@ def dibujar_computadora_central(tiempo):
 
 if __name__ == "__main__":
     main()
-    
