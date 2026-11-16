@@ -1903,6 +1903,21 @@ def manejar_tecla_multijugador(tecla):
                 return
 
 
+_manejar_tecla_multijugador_central_base = manejar_tecla_multijugador
+
+
+def manejar_tecla_multijugador(tecla):
+    """Permite abrir la computadora central desde el puente en multijugador."""
+    if estado == "juego":
+        for indice, jugador in enumerate(jugadores):
+            if (tecla == TECLAS_ACEPTAR[indice]
+                    and jugador.nombre not in formularios_multijugador
+                    and en_alcance_computadora(jugador)):
+                abrir_computadora_central(jugador)
+                return
+    _manejar_tecla_multijugador_central_base(tecla)
+
+
 # ====================
 # DIBUJO: FONDO, NAVE Y HUD
 # ====================
@@ -7584,8 +7599,8 @@ def main():
     cargar_progreso()
     cargar_banco_extra()
     aplicar_opciones()
-    escena = ("juego", "formulario", "minijuego", "pausa", "mapa", "tutorial", "repaso")
-    congelados = ("pausa", "mapa", "opciones", "tutorial", "repaso")
+    escena = ("juego", "formulario", "minijuego", "pausa", "mapa", "central", "tutorial", "repaso")
+    congelados = ("pausa", "mapa", "central", "opciones", "tutorial", "repaso")
     while True:
         dt = min(clock.tick(60) / 1000, 0.05)
         tiempo = pygame.time.get_ticks() / 1000
@@ -7667,10 +7682,13 @@ def main():
                     elif len(jugadores) > 1:
                         manejar_tecla_multijugador(evento.key)
                     elif evento.key == pygame.K_e:
-                        if en_consola_mision():
+                        jugador = responsable_actual()
+                        if en_alcance_computadora(jugador):
+                            abrir_computadora_central(jugador)
+                        elif en_consola_mision(jugador):
                             abrir_formulario()
                         else:
-                            interactuar_servicios(responsable_actual())
+                            interactuar_servicios(jugador)
 
             elif estado == "minijuego":
                 manejar_evento_minijuego(evento)
@@ -7680,6 +7698,14 @@ def main():
                     estado = "juego"
                 elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
                     if boton_cerrar_mapa.collidepoint(convertir_mouse(evento.pos)):
+                        estado = "juego"
+
+            elif estado == "central":
+                if evento.type == pygame.KEYDOWN and evento.key in (
+                        pygame.K_ESCAPE, pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_m):
+                    estado = "juego"
+                elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
+                    if BOTON_CERRAR_CENTRAL.collidepoint(convertir_mouse(evento.pos)):
                         estado = "juego"
 
             elif estado == "pausa":
@@ -7762,8 +7788,8 @@ def main():
         elif estado == "ficha":
             dibujar_ficha(mouse, tiempo)
         elif estado in escena:
-            congelada = estado in ("pausa", "mapa", "tutorial", "repaso")
-            tiempo_escena = tiempo_pausa if estado in ("pausa", "mapa") else tiempo
+            congelada = estado in ("pausa", "mapa", "central", "tutorial", "repaso")
+            tiempo_escena = tiempo_pausa if estado in ("pausa", "mapa", "central") else tiempo
             dibujar_fondo(tiempo_escena)
             if not congelada:
                 if len(jugadores) > 1:
@@ -7797,6 +7823,8 @@ def main():
                 pygame.draw.rect(pantalla, (85, 134, 174), boton_cerrar_mapa, 1, border_radius=10)
                 texto("CERRAR  X", fuente_mini_b, BLANCO, boton_cerrar_mapa.center,
                       centro=True, sombra=False)
+            elif estado == "central":
+                dibujar_computadora_central(tiempo_escena)
         elif estado == "final":
             dibujar_resultado(tiempo, True)
         elif estado == "fallo":
@@ -8456,6 +8484,230 @@ def dibujar_repaso(tiempo):
         _dibujar_ficha_ejercicio(tiempo)
     else:
         _dibujar_repaso_ficha_ejercicio(tiempo)
+
+
+# COMPUTADORA CENTRAL DE CONTROL DE MISIÓN
+COMPUTADORA_CENTRAL = pygame.Rect(278, 665, 64, 42)
+ALCANCE_COMPUTADORA = pygame.Rect(235, 646, 150, 88)
+BOTON_CERRAR_CENTRAL = pygame.Rect(1068, 52, 148, 38)
+MET_FIN_RUTA = 143 * 3600
+PROGRESO_LUNA_RUTA = 0.62
+HITOS_RUTA_MET = (
+    (0, 0.0),
+    (3 * 3600, 0.12),
+    (30 * 3600, 0.30),
+    (55 * 3600 + 55 * 60, 0.46),
+    (76 * 3600 + 42 * 60, 0.58),
+    (79 * 3600 + 28 * 60, 0.68),
+    (105 * 3600 + 18 * 60, 0.84),
+    (138 * 3600, 0.95),
+    (MET_FIN_RUTA, 1.0),
+)
+
+
+def en_alcance_computadora(jugador):
+    """Comprueba si un tripulante llegó al puesto del puente de mando."""
+    return jugador is not None and ALCANCE_COMPUTADORA.collidepoint(jugador.pies())
+
+
+def abrir_computadora_central(jugador):
+    """Abre la vista de trayectoria cuando el jugador está frente al puesto."""
+    global estado, tiempo_pausa
+    if estado != "juego" or not en_alcance_computadora(jugador):
+        return False
+    tiempo_pausa = pygame.time.get_ticks() / 1000
+    estado = "central"
+    return True
+
+
+_dibujar_nave_computadora_base = dibujar_nave
+
+
+def dibujar_nave(tiempo):
+    """Añade al puente el puesto visible de la computadora de control."""
+    _dibujar_nave_computadora_base(tiempo)
+    caja = COMPUTADORA_CENTRAL
+    base = pygame.Rect(caja.x - 7, caja.bottom - 5, caja.width + 14, 8)
+    pygame.draw.rect(pantalla, (10, 20, 33), base, border_radius=3)
+    pygame.draw.rect(pantalla, (75, 101, 124), base, 1, border_radius=3)
+    pygame.draw.rect(pantalla, (16, 29, 45), caja, border_radius=5)
+    pygame.draw.rect(pantalla, (92, 130, 157), caja, 2, border_radius=5)
+    visor = pygame.Rect(caja.x + 6, caja.y + 5, caja.width - 12, 23)
+    pygame.draw.rect(pantalla, (5, 18, 30), visor, border_radius=3)
+    pygame.draw.rect(pantalla, AZUL, visor, 1, border_radius=3)
+    pygame.draw.arc(pantalla, (69, 169, 214), (visor.x + 5, visor.y + 5, 18, 12),
+                    math.pi, math.tau, 1)
+    pygame.draw.line(pantalla, VERDE, (visor.x + 27, visor.centery),
+                     (visor.right - 5, visor.centery), 1)
+    for i in range(3):
+        pygame.draw.circle(pantalla, VERDE if i == 0 else APAGADO,
+                           (caja.x + 13 + i * 12, caja.bottom - 6), 2)
+    cerca = [(i, jugador) for i, jugador in enumerate(jugadores) if en_alcance_computadora(jugador)]
+    if cerca:
+        teclas = "/".join(TECLAS_ACEPTAR_TEXTO[i] for i, _ in cerca)
+        indicacion = f"[{teclas}] CONTROL DE MISIÓN" if len(jugadores) > 1 else "[E] CONTROL DE MISIÓN"
+        texto(indicacion, fuente_micro, AMARILLO, (caja.centerx, caja.y - 10), centro=True)
+    else:
+        texto("CENTRO DE MISIÓN", fuente_micro, APAGADO, (caja.centerx, caja.y - 10),
+              centro=True, sombra=False)
+
+
+def progreso_ruta_actual():
+    """Interpola la posición esquemática de la nave según el hito MET activo."""
+    met = max(0, min(MET_FIN_RUTA, met_vis))
+    for (met_a, prog_a), (met_b, prog_b) in zip(HITOS_RUTA_MET, HITOS_RUTA_MET[1:]):
+        if met <= met_b:
+            proporcion = (met - met_a) / max(1, met_b - met_a)
+            return prog_a + (prog_b - prog_a) * proporcion
+    return 1.0
+
+
+def dibujar_computadora_central(tiempo):
+    """Muestra el MET, el hito actual y una ruta Tierra-Luna-Tierra aproximada."""
+    rect_alpha(pantalla, (2, 6, 14), pygame.Rect(0, 0, ANCHO, ALTO), 224, 0)
+    panel = pygame.Rect(56, 32, ANCHO - 112, ALTO - 64)
+    rect_alpha(pantalla, (7, 17, 31), panel, 253, 18)
+    pygame.draw.rect(pantalla, (58, 96, 128), panel, 1, border_radius=18)
+    pygame.draw.line(pantalla, AZUL, (panel.x + 30, panel.y + 2),
+                     (panel.right - 30, panel.y + 2), 3)
+    texto("COMPUTADORA CENTRAL  ·  CONTROL DE MISIÓN", fuente_mediana, BLANCO,
+          (panel.x + 30, panel.y + 18), sombra=False)
+    texto("TRAYECTORIA APOLO 13", fuente_mini_b, AZUL,
+          (panel.x + 32, panel.y + 54), sombra=False)
+    texto("POSICIÓN ESTIMADA SEGÚN EL MET · NO ES TELEMETRÍA REAL",
+          fuente_micro, AMARILLO, (panel.x + 32, panel.y + 75), sombra=False)
+
+    estado_panel = pygame.Rect(panel.x + 28, panel.y + 108, 274, 428)
+    ruta_panel = pygame.Rect(estado_panel.right + 16, estado_panel.y,
+                             panel.right - estado_panel.right - 44, 428)
+    rect_alpha(pantalla, (11, 25, 42), estado_panel, 250, 12)
+    pygame.draw.rect(pantalla, (41, 66, 89), estado_panel, 1, border_radius=12)
+    rect_alpha(pantalla, (9, 22, 38), ruta_panel, 250, 12)
+    pygame.draw.rect(pantalla, (41, 66, 89), ruta_panel, 1, border_radius=12)
+
+    progreso = progreso_ruta_actual()
+    met_txt = fmt_met(met_vis)
+    indice = next((i for i in range(len(misiones)) if i not in misiones_completadas), None)
+    if indice is None and misiones:
+        indice = len(misiones) - 1
+    mision_txt = misiones[indice]["titulo"] if indice is not None else "Misión finalizada"
+    completadas = len(misiones_completadas)
+    if progreso <= PROGRESO_LUNA_RUTA:
+        distancia = round(400000 * progreso / PROGRESO_LUNA_RUTA)
+        tramo = "RUMBO A LA LUNA"
+    else:
+        distancia = round(400000 * (1 - progreso) / (1 - PROGRESO_LUNA_RUTA))
+        tramo = "REGRESO A LA TIERRA"
+
+    texto("ESTADO DE VUELO", fuente_mini_b, AMARILLO,
+          (estado_panel.x + 18, estado_panel.y + 18), sombra=False)
+    pygame.draw.line(pantalla, (35, 57, 78), (estado_panel.x + 16, estado_panel.y + 43),
+                     (estado_panel.right - 16, estado_panel.y + 43), 1)
+    texto("TIEMPO DE MISIÓN (MET)", fuente_micro, SUAVE,
+          (estado_panel.x + 18, estado_panel.y + 58), sombra=False)
+    texto(met_txt, fuente_grande, BLANCO,
+          (estado_panel.x + 18, estado_panel.y + 78), sombra=False)
+    texto(tramo, fuente_mini_b, AZUL,
+          (estado_panel.x + 18, estado_panel.y + 125), sombra=False)
+    texto(f"DISTANCIA ESTIMADA  {fmt_puntos(distancia)} km", fuente_mini_b, VERDE,
+          (estado_panel.x + 18, estado_panel.y + 154), sombra=False)
+    texto(f"HITOS COMPLETADOS  {completadas}/{len(misiones)}", fuente_mini, SUAVE,
+          (estado_panel.x + 18, estado_panel.y + 194), sombra=False)
+    barra = pygame.Rect(estado_panel.x + 18, estado_panel.y + 218, estado_panel.width - 36, 8)
+    pygame.draw.rect(pantalla, (22, 39, 57), barra, border_radius=4)
+    pygame.draw.rect(pantalla, AZUL, (barra.x, barra.y, round(barra.width * progreso), barra.height),
+                     border_radius=4)
+    texto("HITO ACTUAL", fuente_micro, SUAVE,
+          (estado_panel.x + 18, estado_panel.y + 250), sombra=False)
+    lineas_mision = partir_texto(mision_txt, fuente_mini_b, estado_panel.width - 36)
+    for i, linea in enumerate(lineas_mision[:3]):
+        texto(linea, fuente_mini_b, BLANCO,
+              (estado_panel.x + 18, estado_panel.y + 270 + i * 18), sombra=False)
+
+    tripulacion = ", ".join(j.nombre for j in jugadores) or "Sin tripulación"
+    texto("TRIPULACIÓN", fuente_micro, SUAVE,
+          (estado_panel.x + 18, estado_panel.y + 344), sombra=False)
+    for i, linea in enumerate(partir_texto(tripulacion, fuente_mini, estado_panel.width - 36)[:2]):
+        texto(linea, fuente_mini, BLANCO, (estado_panel.x + 18, estado_panel.y + 364 + i * 17),
+              sombra=False)
+    texto("La marca avanza al completar hitos históricos.",
+          fuente_micro, APAGADO, (estado_panel.x + 18, estado_panel.bottom - 24), sombra=False)
+
+    texto("RUTA DE VUELO  ·  ESQUEMA", fuente_mini_b, SUAVE,
+          (ruta_panel.x + 20, ruta_panel.y + 16), sombra=False)
+    area = pygame.Rect(ruta_panel.x + 22, ruta_panel.y + 48, ruta_panel.width - 44, 314)
+    for x in range(area.x + 12, area.right, 32):
+        pygame.draw.line(pantalla, (17, 35, 52), (x, area.y), (x, area.bottom), 1)
+    for y in range(area.y + 12, area.bottom, 28):
+        pygame.draw.line(pantalla, (17, 35, 52), (area.x, y), (area.right, y), 1)
+    ruta_relativa = (
+        (0.08, 0.72), (0.14, 0.60), (0.26, 0.44), (0.40, 0.31),
+        (0.54, 0.22), (0.67, 0.27), (0.73, 0.43), (0.70, 0.58),
+        (0.60, 0.72), (0.45, 0.82), (0.29, 0.84), (0.17, 0.79),
+        (0.09, 0.73),
+    )
+    puntos = [(area.x + round(x * area.width), area.y + round(y * area.height))
+              for x, y in ruta_relativa]
+    centro_tierra = puntos[0]
+    centro_luna = puntos[6]
+    for radio, color_anillo in ((54, (27, 70, 103)), (42, (38, 91, 128))):
+        pygame.draw.circle(pantalla, color_anillo, centro_tierra, radio, 1)
+    pygame.draw.circle(pantalla, (22, 69, 112), centro_tierra, 31)
+    pygame.draw.circle(pantalla, (79, 156, 207), centro_tierra, 31, 2)
+    pygame.draw.polygon(pantalla, (62, 142, 106), [
+        (centro_tierra[0] - 18, centro_tierra[1] - 12),
+        (centro_tierra[0] - 3, centro_tierra[1] - 22),
+        (centro_tierra[0] + 8, centro_tierra[1] - 11),
+        (centro_tierra[0] + 2, centro_tierra[1] - 1),
+        (centro_tierra[0] + 16, centro_tierra[1] + 8),
+        (centro_tierra[0] + 5, centro_tierra[1] + 23),
+        (centro_tierra[0] - 7, centro_tierra[1] + 12),
+        (centro_tierra[0] - 21, centro_tierra[1] + 7),
+    ])
+    pygame.draw.circle(pantalla, (154, 164, 170), centro_luna, 34)
+    pygame.draw.circle(pantalla, (209, 216, 220), centro_luna, 34, 2)
+    for dx, dy, radio in ((-12, -9, 7), (11, -16, 5), (14, 10, 8), (-7, 16, 4)):
+        pygame.draw.circle(pantalla, (113, 127, 139),
+                           (centro_luna[0] + dx, centro_luna[1] + dy), radio, 1)
+    pygame.draw.lines(pantalla, (20, 48, 69), False, puntos, 7)
+    pygame.draw.lines(pantalla, (62, 174, 218), False, puntos, 2)
+    for pos in (puntos[1], puntos[4], puntos[8], puntos[11]):
+        pygame.draw.circle(pantalla, AMARILLO, pos, 3)
+
+    tramo_progreso = progreso * (len(puntos) - 1)
+    segmento = min(len(puntos) - 2, int(tramo_progreso))
+    fraccion = tramo_progreso - segmento
+    origen, destino = puntos[segmento], puntos[segmento + 1]
+    nave = (round(origen[0] + (destino[0] - origen[0]) * fraccion),
+            round(origen[1] + (destino[1] - origen[1]) * fraccion))
+    brillo = 0.5 + 0.5 * math.sin(tiempo * 4)
+    pygame.draw.circle(pantalla, mezclar((42, 137, 183), (103, 226, 255), brillo), nave, 11)
+    pygame.draw.circle(pantalla, BLANCO, nave, 5)
+    pygame.draw.polygon(pantalla, AMARILLO, [
+        (nave[0] + 13, nave[1]), (nave[0] - 5, nave[1] - 6), (nave[0] - 2, nave[1]),
+        (nave[0] - 5, nave[1] + 6),
+    ])
+    texto("TIERRA", fuente_mini_b, AZUL, (centro_tierra[0], centro_tierra[1] + 46), centro=True)
+    texto("LUNA", fuente_mini_b, BLANCO, (centro_luna[0], centro_luna[1] + 42), centro=True)
+    texto("Apolo 13", fuente_micro, AMARILLO, (nave[0], nave[1] - 19), centro=True)
+    texto("LANZAMIENTO", fuente_micro, SUAVE, (area.x + 8, area.bottom - 2), sombra=False)
+    texto("AMERIZAJE", fuente_micro, SUAVE, (area.right - 8, area.bottom - 2), derecha=True, sombra=False)
+    leyenda_y = area.bottom + 27
+    pygame.draw.line(pantalla, (62, 174, 218), (area.x + 8, leyenda_y + 5),
+                     (area.x + 42, leyenda_y + 5), 2)
+    texto("Trayectoria histórica simplificada", fuente_micro, SUAVE,
+          (area.x + 50, leyenda_y - 2), sombra=False)
+    texto(f"MET activo: {met_txt}  ·  marcadores de maniobra",
+          fuente_micro, APAGADO, (area.x + 8, leyenda_y + 21), sombra=False)
+
+    hover = BOTON_CERRAR_CENTRAL.collidepoint(convertir_mouse(pygame.mouse.get_pos()))
+    rect_alpha(pantalla, (24, 43, 62) if hover else (15, 30, 48),
+               BOTON_CERRAR_CENTRAL, 245, 9)
+    pygame.draw.rect(pantalla, AZUL if hover else (60, 86, 109), BOTON_CERRAR_CENTRAL, 1, border_radius=9)
+    texto("VOLVER  ·  ESC", fuente_mini_b, BLANCO, BOTON_CERRAR_CENTRAL.center,
+          centro=True, sombra=False)
+    texto("ESC / ENTER / M para volver a la nave",
+          fuente_micro, APAGADO, (panel.centerx, panel.bottom - 24), centro=True, sombra=False)
 
 
 if __name__ == "__main__":
