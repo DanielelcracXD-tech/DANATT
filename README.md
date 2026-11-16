@@ -1,55 +1,17 @@
 # DANATT
-Juego para el hack de la nasa jeje
-olaaaa
-oye ola te quiero mucho jeje
-oye ola yo te quiero mucho más jeje
 
-ola bella dama *se sonroja* ¿qué haces? es un honor para mi estar de equipo con alguien tan bella como uste *se sonroja* mido 1.80
-*toma un sorbo a su matcha* y me gusta leer literatura feminista, ¿quieres ser el six de mi seven, la princesa que este megacaballero proteja,
-mi dúo dinámico mi chukirumi?
+The code of the game is "nattyjuego.py", the .mp3 files are some audios that we added to the game.
 
-ola eto *mueve la colita * s-si quiero sempai UwU
+The game is made by Daniel Tapia Valencia and Natalia Rodriguez Rosas.
 
+The game is about solving missions, try to survive to some random events, Admin the resources and learn about what happene in the "Apollo 13" mission.
 
-oye ola, te quiero mucho mucho mucho jeje <3
+We did two type of levels: "Easy" and "Hard"
 
+In the easy level you can solve the missions like playing some minigames and if you complete the mission you can see hat happened in that stage in the "Apollo 13" mission. We added some features like eating, drinking water and doing excercise.
 
-ola oye
+When you eat you can see a message of why is that kind of food important for the crew. When you do excercise you can even see a message of why is excercise important.
 
+If you don´t do excercise in time, you will start to lose healt.
 
-ola oigo
-
-no nada jejej
-
-lo distes todo, te pasastes de koketa
-
-
-ola eres muy bonita jeje, te quiero muchísimo
-
-
-olaa muchas gracias guapo, yo igual
-
-oye m justas jeje
-
-
-oye jejejejejjejejje tú a mi jejejeje, mucho mucho
-
-
-
-oye si? oye okei te quiero mucho
-
-
-oye sí jeje, yo te quiero muchísimo más
-
-oye gracias jeje lo distes todo
-
-oyesí, me pasé de koketo jeje
-
-ola, te extraño muchísimo :(
-
-ola ya vuelve por favor :(
-
-
-olaaa buenos dias oye como estas dime dime aparte de bello caray, eres muy iteligente q bello, sigue descansando
-
-oye ola guapa me gustas muchíisimo, ya quiero que sea martes para poder verte jeje. Te quiero mucho guapa jeje <3
+We tried to simulate a space travel in a game. We hope you like it
